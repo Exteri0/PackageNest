@@ -653,6 +653,8 @@ paths:
             track information.
       x-swagger-router-controller: Default
   /test:
+
+
     get:
       operationId: testGET
       responses:
@@ -664,6 +666,46 @@ paths:
                 $ref: '#/components/schemas/inline_response_200'
         "500":
           description: The system encountered an error.
+      x-swagger-router-controller: Default
+  /test/{metric_name}:
+    get:
+      summary: Test a specific metric
+      description: Call the corresponding metric function based on the provided metric name.
+      operationId: testMetricNameGET
+      parameters:
+        - name: metric_name
+          in: path
+          required: true
+          description: Name of the metric to test (e.g., correctness).
+          schema:
+            type: string
+        - name: Authorization
+          in: header
+          required: true
+          description: Authentication token for the API.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Returns the result of the metric test.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result:
+                    type: string
+                    description: The result of the metric evaluation.
+              examples:
+                ExampleResponse:
+                  value:
+                    result: Metric test succeeded.
+        "400":
+          description: Bad request due to invalid or missing parameters.
+        "403":
+          description: Authentication failed due to invalid or missing Authorization token.
+        "500":
+          description: Internal server error occurred while processing the metric test.
       x-swagger-router-controller: Default
 
 components:
