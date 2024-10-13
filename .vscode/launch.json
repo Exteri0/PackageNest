@@ -8,16 +8,6 @@
         "skipFiles": ["<node_internals>/**"],
         "program": "${workspaceFolder}/index.js", 
         "preLaunchTask": "npm: build"
-      },
-      {
-        "type": "node",
-        "request": "launch",
-        "name": "Debug Program",
-        "skipFiles": ["<node_internals>/**"],
-        "program": "${workspaceFolder}/index.js",
-        "outFiles": ["${workspaceFolder}/dist/**/*.js"],
-        "preLaunchTask": "npm: build",
-        "console": "integratedTerminal"
       }
     ]
   }

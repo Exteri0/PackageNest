@@ -6,7 +6,7 @@
   "scripts": {
     "prestart": "npm install",
     "start": "node index.js",
-    "build": "tsc"
+    "build": "tsx"
   },
   "keywords": [
     "swagger"
@@ -18,7 +18,8 @@
     "express": "^4.21.1",
     "js-yaml": "^3.3.0",
     "oas3-tools": "^2.2.3",
-    "swagger-ui-express": "^5.0.1"
+    "swagger-ui-express": "^5.0.1",
+    "tsx": "^4.19.1"
   },
   "devDependencies": {
     "@types/node": "^22.7.5",

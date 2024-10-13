@@ -403,3 +403,30 @@ export function tracksGET(xAuthorization: AuthenticationToken): Promise<Array<an
     resolve(examples['application/json']);
   });
 }
+
+/**
+ * (NON-BASELINE)
+ * Testing
+ *
+ * @param xAuthorization AuthenticationToken 
+ * @returns Promise<Array<any>>
+ */
+export function testGET(xAuthorization: AuthenticationToken): Promise<Array<any>> {
+  return new Promise<Array<any>>((resolve) => {
+    const examples: { [key: string]: Array<any> } = {
+      'application/json': [
+        {
+          "Version": "1.2.3",
+          "ID": "testing",
+          "Name": "Name"
+        },
+        {
+          "Version": "1.2.3",
+          "ID": "aaaaaaaa",
+          "Name": "Name"
+        }
+      ]
+    };
+    resolve(examples['application/json']);
+  });
+}

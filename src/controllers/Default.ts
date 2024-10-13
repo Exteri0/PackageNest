@@ -140,3 +140,14 @@ export const tracksGET = (req: Request, res: Response, next: NextFunction): void
       utils.writeJson(res, response);
     });
 };
+
+export const testGET = (req: Request, res: Response, next: NextFunction): void => {
+  const xAuthorization: Default.AuthenticationToken = { token: req.headers.authorization ? req.headers.authorization.toString() : '' };
+  Default.testGET(xAuthorization)
+    .then((response: any) => {
+      utils.writeJson(res, response);
+    })
+    .catch((response: any) => {
+      utils.writeJson(res, response);
+    });
+};

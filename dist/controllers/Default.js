@@ -23,7 +23,7 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.tracksGET = exports.RegistryReset = exports.PackagesList = exports.PackageUpdate = exports.PackageRetrieve = exports.PackageRate = exports.packageIdCostGET = exports.PackageDelete = exports.PackageCreate = exports.PackageByRegExGet = exports.PackageByNameGet = exports.CreateAuthToken = void 0;
+exports.testGET = exports.tracksGET = exports.RegistryReset = exports.PackagesList = exports.PackageUpdate = exports.PackageRetrieve = exports.PackageRate = exports.packageIdCostGET = exports.PackageDelete = exports.PackageCreate = exports.PackageByRegExGet = exports.PackageByNameGet = exports.CreateAuthToken = void 0;
 const utils = __importStar(require("../utils/writer"));
 const Default = __importStar(require("../service/DefaultService"));
 const CreateAuthToken = (req, res, next, body) => {
@@ -163,4 +163,15 @@ const tracksGET = (req, res, next) => {
     });
 };
 exports.tracksGET = tracksGET;
+const testGET = (req, res, next) => {
+    const xAuthorization = { token: req.headers.authorization ? req.headers.authorization.toString() : '' };
+    Default.testGET(xAuthorization)
+        .then((response) => {
+        utils.writeJson(res, response);
+    })
+        .catch((response) => {
+        utils.writeJson(res, response);
+    });
+};
+exports.testGET = testGET;
 //# sourceMappingURL=Default.js.map

@@ -652,6 +652,20 @@ paths:
           description: The system encountered an error while retrieving the student's
             track information.
       x-swagger-router-controller: Default
+  /test:
+    get:
+      operationId: testGET
+      responses:
+        "200":
+          description: testing the yaml file
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/inline_response_200'
+        "500":
+          description: The system encountered an error.
+      x-swagger-router-controller: Default
+
 components:
   schemas:
     Package:

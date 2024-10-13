@@ -12,6 +12,7 @@ exports.packageUpdate = packageUpdate;
 exports.packagesList = packagesList;
 exports.registryReset = registryReset;
 exports.tracksGET = tracksGET;
+exports.testGET = testGET;
 /**
  * (NON-BASELINE)
  * Create an access token.
@@ -327,6 +328,32 @@ function tracksGET(xAuthorization) {
                 {
                     "Version": "1.2.3",
                     "ID": "123567192081501",
+                    "Name": "Name"
+                }
+            ]
+        };
+        resolve(examples['application/json']);
+    });
+}
+/**
+ * (NON-BASELINE)
+ * Testing
+ *
+ * @param xAuthorization AuthenticationToken
+ * @returns Promise<Array<any>>
+ */
+function testGET(xAuthorization) {
+    return new Promise((resolve) => {
+        const examples = {
+            'application/json': [
+                {
+                    "Version": "1.2.3",
+                    "ID": "testing",
+                    "Name": "Name"
+                },
+                {
+                    "Version": "1.2.3",
+                    "ID": "aaaaaaaa",
                     "Name": "Name"
                 }
             ]
