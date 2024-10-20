@@ -1,0 +1,25 @@
+# "org" ensures this Service is used with the correct Serverless Framework Access Key.
+org: exteri0
+# "service" is the name of this project. This will also be added to your AWS resource names.
+service: whatevefr
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  region: us-east-2
+  stage: dev
+
+functions:
+  hello:
+    handler: src/index.handler
+    events:
+      - httpApi:
+          path: /
+          method: get
+      - httpApi:
+          path: /{proxy+}
+          method: any
+
+package:
+  patterns:
+    - src/api/openapi.yaml

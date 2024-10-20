@@ -1,42 +1,29 @@
-"use strict";
+import express, { Request, Response } from "express";
+import cors from "cors";
+import routes from "./routes";
 import serverless from "serverless-http";
-import path from "path";
-import http from "http";
-import * as dotenv from "dotenv";
-dotenv.config();
 
-import * as oas3Tools from "oas3-tools";
-import { Oas3AppOptions } from "oas3-tools/dist/middleware/oas3.options";
-const serverPort = 8080;
+const app = express();
+const port = 3000;
 
-// swaggerRouter configuration
-const options = {
-  routing: {
-    controllers: path.join(__dirname, "./controllers"),
-  },
-};
-
-const expressAppConfig = oas3Tools.expressAppConfig(
-  path.join(__dirname, "./api/openapi.yaml"),
-  options as unknown as Oas3AppOptions
-);
-const app = expressAppConfig.getApp();
-
-app.get("/hello", (req, res) => {
-  res.send("Hello World!");
+app.use(cors());
+app.use(express.json());
+app.get("/", (req: Request, res: Response) => {
+  res.send("Hello, world!");
 });
 
-// Initialize the Swagger middleware
-http.createServer(app).listen(serverPort, function () {
-  console.log(
-    "Your server is listening on port %d (http://localhost:%d)",
-    serverPort,
-    serverPort
-  );
-  console.log(
-    "Swagger-ui is available on http://localhost:%d/docs",
-    serverPort
-  );
-});
+// app.listen(port, () => {
+//   console.log(`Server is running on http://localhost:${port}`);
+//   routes(app);
+// });
 
-export const handler = serverless(app);
+routes(app);
+
+// const server = awsServerlessExpress.createServer(app);
+
+// export const handler = (event: APIGatewayProxyEvent, context: Context) => {
+//   return awsServerlessExpress.proxy(server, event, context);
+// };
+
+const handler = serverless(app);
+export { handler };

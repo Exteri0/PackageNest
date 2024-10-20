@@ -7,7 +7,9 @@
     "prestart": "npm install",
     "start": "tsx src/index.ts",
     "build": "tsc",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "deploy": "sls deploy",
+    "dev": "sls dev"
   },
   "keywords": [
     "swagger"
@@ -16,7 +18,11 @@
   "private": true,
   "dependencies": {
     "@octokit/graphql": "^8.1.1",
+    "@types/cors": "^2.8.17",
+    "aws-serverless-express": "^3.4.0",
+    "body-parser": "^1.20.3",
     "connect": "^3.2.0",
+    "cors": "^2.8.5",
     "express": "^4.21.1",
     "js-yaml": "^3.3.0",
     "oas3-tools": "^2.2.3",
