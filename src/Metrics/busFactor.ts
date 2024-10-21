@@ -1,4 +1,5 @@
 import { graphql, GraphqlResponseError } from "@octokit/graphql";
+import logger from "../logger.js";
 
 // define interface
 export interface BusFactorInterface {
@@ -28,13 +29,14 @@ export async function getBusFactorJSON(
   token: string | undefined = process.env.GITHUB_TOKEN
 ): Promise<{ BusFactor: number; BusFactor_Latency: number }> {
   const startTime = performance.now();
-  
+  logger.info(`Calculating bus factor for ${owner}/${name}`);
+
   // Validate the token
   if (!token) {
-    console.log("GITHUB_TOKEN is not defined");
+    logger.error("GITHUB_TOKEN is not defined");
     process.exit(1);
   } else if (!token.includes("ghp_")) {
-    console.log("Invalid GITHUB_TOKEN");
+    logger.error("Invalid GITHUB_TOKEN");
     process.exit(1);
   }
 
@@ -71,14 +73,16 @@ export async function getBusFactorJSON(
   try {
     // execute the GraphQL query
     const response = await graphqlWithAuth<BusFactorInterface>(query, variables);
-    const collaborators = response.repository.collaborators.edges.map((edge: { node: { login: string; contributionsCollection: { totalCommitContributions: number } } }) => ({
+    logger.info("GraphQL query executed successfully");
+
+    const collaborators = response.repository.collaborators.edges.map((edge) => ({
       login: edge.node.login,
       contributions: edge.node.contributionsCollection.totalCommitContributions,
     }));
 
     // check if no contributors were found
     if (collaborators.length === 0) {
-      console.log("No contributors found.");
+      logger.warn("No contributors found.");
       return {
         BusFactor: -1,
         BusFactor_Latency: getLatency(startTime),
@@ -86,10 +90,10 @@ export async function getBusFactorJSON(
     }
 
     // sort contributors based on contributions
-    collaborators.sort((a: { contributions: number }, b: { contributions: number }) => b.contributions - a.contributions);
+    collaborators.sort((a, b) => b.contributions - a.contributions);
 
     // calculate the total number of commits
-    const totalCommits = collaborators.reduce((sum: number, contributor: { contributions: number }) => sum + contributor.contributions, 0);
+    const totalCommits = collaborators.reduce((sum, contributor) => sum + contributor.contributions, 0);
 
     // calculate the number of key contributors that account for at least 50% of total commits
     let cumulativeCommits = 0;
@@ -108,17 +112,18 @@ export async function getBusFactorJSON(
     const busFactorPercentage = 1 - (keyContributors / collaborators.length);
     const busFactorScore = Number(busFactorPercentage.toFixed(3));
 
+    logger.info(`Bus factor calculated: ${busFactorScore}`);
     return {
       BusFactor: busFactorScore,
       BusFactor_Latency: getLatency(startTime),
     };
   } catch (error: unknown) {
     if (error instanceof GraphqlResponseError) {
-      console.error("GraphQL Response Error:", error.message);
+      logger.error("GraphQL Response Error:", { message: error.message });
     } else if (error instanceof Error) {
-      console.error("Error while calculating bus factor:", error.message);
+      logger.error("Error while calculating bus factor:", { message: error.message });
     } else {
-      console.error("Unknown error occurred");
+      logger.error("Unknown error occurred");
     }
     return {
       BusFactor: 0,
@@ -126,4 +131,3 @@ export async function getBusFactorJSON(
     };
   }
 }
-
