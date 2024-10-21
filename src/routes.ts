@@ -1,4 +1,10 @@
 import { Express, Request, Response } from "express";
+import awsSdk from "aws-sdk";
+import "dotenv/config";
+import { PutObjectRequest } from "aws-sdk/clients/s3";
+
+const bucketName = process.env.S3_BUCKET_NAME;
+const s3 = new awsSdk.S3();
 
 export default (app: Express) => {
   // POST /Packages
@@ -22,9 +28,34 @@ export default (app: Express) => {
 
   // PUT /package/{id}
   app.put("/package/:id", (req: Request, res: Response) => {
-    res.send(
-      `This is a PUT request to /package/${req.params.id} - Update the content of package with ID: ${req.params.id}`
-    );
+    const fileToUpload = {
+      userId: "123456",
+      email: "enrico@gmail.com",
+      city: "London",
+      country: "UK",
+    };
+    try {
+      const params = {
+        Bucket: bucketName,
+        Key: `storage/${req.params.id}`,
+        Body: JSON.stringify(fileToUpload),
+      };
+      console.log(
+        `Uploading file to S3 with the name ${bucketName}/${params.Key}`
+      );
+      s3.upload(params as PutObjectRequest, (err, data) => {
+        if (err) {
+          console.error(err);
+          res.status(500).send("Error uploading data: " + err);
+        } else {
+          console.log("Upload success", data.Location);
+          res.send("Upload success: " + data.Location);
+        }
+      });
+    } catch (err) {
+      console.error(err);
+      res.status(500).send("Error uploading data: " + err);
+    }
   });
 
   // DELETE /package/{id}

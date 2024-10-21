@@ -8,6 +8,12 @@ provider:
   runtime: nodejs20.x
   region: us-east-2
   stage: dev
+  iamRoleStatements:
+    - Effect: "Allow"
+      Action:
+        - "s3:PutObject"
+      Resource:
+        - "arn:aws:s3:::${env:S3_BUCKET_NAME}/*"
 
 functions:
   hello:
@@ -19,6 +25,8 @@ functions:
       - httpApi:
           path: /{proxy+}
           method: any
+    environment:
+      S3_BUCKET_NAME: ${env:S3_BUCKET_NAME}
 
 package:
   patterns:
