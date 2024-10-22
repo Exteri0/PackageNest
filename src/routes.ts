@@ -22,7 +22,7 @@ export default (app: Express) => {
   // GET /package/{id}
   app.get("/package/:id", (req: Request, res: Response) => {
     res.send(
-      `This is a GET request to /package/${req.params.id} - Interact with the package with ID: ${req.params.id}`
+      `This is a GETrassadsad request to /package/${req.params.id} - Interact with the package with ID: ${req.params.id}`
     );
   });
 
