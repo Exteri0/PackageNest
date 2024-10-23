@@ -6,6 +6,8 @@ import * as Default from "../service/DefaultService";
 import * as Metrics from "../Metrics/metricExport";
 import { OpenApiRequest } from "../utils/types";
 
+// Things with an input like offset might cause trouble
+
 export const CreateAuthToken = (
   req: OpenApiRequest,
   res: Response,

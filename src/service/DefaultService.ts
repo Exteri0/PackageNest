@@ -1,5 +1,13 @@
 'use strict';
 
+import awsSdk from "aws-sdk";
+import "dotenv/config";
+import { PutObjectRequest } from "aws-sdk/clients/s3";
+
+const bucketName = process.env.S3_BUCKET_NAME;
+const s3 = new awsSdk.S3();
+
+
 /**
  * Types
  */
