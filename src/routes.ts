@@ -5,7 +5,7 @@ export default (app: Express) => {
 
   // POST /packages (PackagesList expects req, res, next, body, offset)
   app.post("/packages", (req: Request, res: Response, next: NextFunction) => {
-    const offset = req.query.offset?.toString() || ""; // assuming offset comes from query parameters
+    const offset = req.query.offset?.toString() ?? ""; // assuming offset comes from query parameters
     DefaultController.PackagesList(req, res, next, req.body, offset);
   });
 

@@ -193,25 +193,57 @@ export function packageByRegExGet(body: PackageQuery, xAuthorization: Authentica
  * @returns Promise<Package>
  */
 export function packageCreate(body: Package, xAuthorization: AuthenticationToken): Promise<Package> {
-  return new Promise(function(resolve) {
-    const examples: { [key: string]: Package } = {
-      'application/json': {
-        "metadata": {
-          "Version": "1.2.3",
-          "ID": "123567192081501",
-          "Name": "Name"
-        },
-        "data": {
-          "Content": "Content",
-          "debloat": true,
-          "JSProgram": "JSProgram",
-          "URL": "URL"
-        }
-      }
+  return new Promise(function (resolve, reject) {
+    if (!body || !body.metadata || !body.data) {
+      return reject({
+        message: "Invalid request body. 'metadata' and 'data' are required.",
+        status: 400
+      });
+    }
+
+    // Define the S3 key (path in the bucket) where the package will be stored
+    const s3Key = `packages/${body.metadata.Name}/v${body.metadata.Version}/package.json`;
+
+    const s3Params: PutObjectRequest = {
+      Bucket: bucketName!,
+      Key: s3Key,
+      Body: JSON.stringify(body),  // Package content in JSON format
+      ContentType: "application/json",
     };
-    resolve(examples['application/json']);
+
+    // Upload the package to S3
+    s3.putObject(s3Params, function (err, data) {
+      if (err) {
+        reject({
+          message: `Failed to upload package to S3: ${err.message}`,
+          status: 500
+        });
+      } else {
+        console.log(`Package uploaded successfully: ${data.ETag}`);
+
+        // Optionally, you can add more details here to return the package metadata, etc.
+        resolve(body);  // Return the uploaded package metadata and data as the response
+      }
+    });
   });
 }
+/* BASE INPUT: Put it as body in postman
+
+{
+  "metadata": {
+    "Version": "1.0.0",
+    "ID": "1234567890",
+    "Name": "ExamplePackage"
+  },
+  "data": {
+    "Content": "This is a sample content for the package.",
+    "debloat": false,
+    "JSProgram": "console.log('Hello World!');",
+    "URL": "https://example.com/package/example.zip"
+  }
+}
+  
+*/
 
 /**
  * (NON-BASELINE)
@@ -303,7 +335,7 @@ export function packageRetrieve(xAuthorization: AuthenticationToken, id: Package
           "Content": "Content",
           "debloat": true,
           "JSProgram": "JSProgram",
-          "URL": "URL"
+          "URL": "URL1"
         }
       }
     };
