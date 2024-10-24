@@ -7,6 +7,17 @@ import { PutObjectRequest } from "aws-sdk/clients/s3";
 const bucketName = process.env.S3_BUCKET_NAME;
 const s3 = new awsSdk.S3();
 
+// Import the 'pg' library
+const { Pool  } = require('pg');
+
+// Database connection configuration
+const dbConfig = new Pool  ({
+  user: process.env.RDS_USER,            // PostgreSQL DB username
+  host: process.env.RDS_HOST,            // RDS endpoint (from AWS RDS console)
+  database: process.env.RDS_DATABASE,    // Your database name
+  password: process.env.RDS_PASSWORD,    // Your RDS password
+  port: process.env.RDS_PORT,            // Default PostgreSQL port
+});
 
 /**
  * Types
@@ -221,9 +232,23 @@ export function packageCreate(body: Package, xAuthorization: AuthenticationToken
       } else {
         console.log(`Package uploaded successfully: ${data.ETag}`);
 
-        // Optionally, you can add more details here to return the package metadata, etc.
-        resolve(body);  // Return the uploaded package metadata and data as the response
-      }
+        const query = `
+        INSERT INTO packages (name, version, score)
+        VALUES ($1, $2, $3) RETURNING id;
+      `;
+        const values = [body.metadata.Name, body.metadata.Version, body.data.Content.length]; // Assuming score is based on content length for demonstration
+        console.log(`hi`);
+        dbConfig.query(query, values)
+          .then((res: { rows: { id: number }[] }) => {
+              console.log('Package inserted successfully:', res.rows[0].id); // Log success
+          })
+          .catch((dbErr: Error) => {
+              console.error('Failed to insert package into the database:', dbErr.message); // Log error
+          })
+          .finally(() => {
+              dbConfig.end(); // Ensure to close the client connection
+          });
+        }
     });
   });
 }

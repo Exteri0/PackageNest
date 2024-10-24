@@ -14,11 +14,11 @@ provider:
         - "s3:PutObject"
       Resource:
         - "arn:aws:s3:::${env:S3_BUCKET_NAME}/*"
-    # - Effect: "Allow"
-    #   Action:
-    #     - "rds:*"
-    #   Resource:
-    #     - "arn:aws:rds:${env:AWS_REGION}:${env:AWS_ACCOUNT_ID}:db:${env:RDS_CLUSTER_NAME}"
+    - Effect: "Allow"
+      Action:
+        - "rds:*"
+      Resource:
+        - "arn:aws:rds:${env:AWS_REGION}:${env:AWS_ACCOUNT_ID}:db:${env:RDS_CLUSTER_NAME}"
 
 functions:
   hello:

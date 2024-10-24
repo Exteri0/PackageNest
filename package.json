@@ -28,6 +28,7 @@
     "express": "^4.21.1",
     "js-yaml": "^3.3.0",
     "oas3-tools": "^2.2.3",
+    "pg": "^8.13.1",
     "serverless": "^4.4.7",
     "serverless-http": "^3.2.0",
     "sls": "^0.1.0",
