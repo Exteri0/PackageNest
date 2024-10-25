@@ -239,17 +239,25 @@ export function packageCreate(body: Package, xAuthorization: AuthenticationToken
         VALUES ($1, $2, $3) RETURNING id;
       `;
         const values = [body.metadata.Name, body.metadata.Version, 0.25]; // Assuming score is based on content length for demonstration
-        console.log(`hi`);
+
         dbConfig.query(query, values)
           .then((res: { rows: { id: number }[] }) => {
-              console.log('Package inserted successfully:', res.rows[0].id); // Log success
+              console.log('Package inserted successfully:', res.rows[0].id);
+              const updatedBody: Package = {
+                ...body,
+                metadata: {
+                  ...body.metadata
+                }
+              };
+              resolve(updatedBody); // Return the updated Package object
           })
           .catch((dbErr: Error) => {
-              console.error('Failed to insert package into the database:', dbErr.message); // Log error
+            console.error('Failed to insert package into the database:', dbErr.message);
+            reject({
+              message: `Failed to insert package into the database: ${dbErr.message}`,
+              status: 500
+            });
           })
-          .finally(() => {
-              dbConfig.end(); // Ensure to close the client connection
-          });
         }
     });
   });
