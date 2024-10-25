@@ -11,7 +11,7 @@ const s3 = new awsSdk.S3();
 const { Pool  } = require('pg');
 
 // Database connection configuration
-const dbConfig = new Pool  ({
+export const dbConfig = new Pool  ({
   user: process.env.RDS_USER,            // PostgreSQL DB username
   host: process.env.RDS_HOST,            // RDS endpoint (from AWS RDS console)
   database: process.env.RDS_DATABASE,    // Your database name
@@ -235,7 +235,7 @@ export function packageCreate(body: Package, xAuthorization: AuthenticationToken
         console.log(`Package uploaded successfully: ${data.ETag}`);
 
         const query = `
-        INSERT INTO public."Packages" (name, version, score)
+        INSERT INTO public."packages" (name, version, score)
         VALUES ($1, $2, $3) RETURNING id;
       `;
         const values = [body.metadata.Name, body.metadata.Version, 0.25]; // Assuming score is based on content length for demonstration
