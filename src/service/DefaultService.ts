@@ -17,6 +17,7 @@ const dbConfig = new Pool  ({
   database: process.env.RDS_DATABASE,    // Your database name
   password: process.env.RDS_PASSWORD,    // Your RDS password
   port: process.env.RDS_PORT,            // Default PostgreSQL port
+  ssl: { rejectUnauthorized: false, },      // SSL configuration
 });
 
 /**
@@ -230,13 +231,14 @@ export function packageCreate(body: Package, xAuthorization: AuthenticationToken
           status: 500
         });
       } else {
+        console.log(`database name is: ${process.env.RDS_DATABASE}`);
         console.log(`Package uploaded successfully: ${data.ETag}`);
 
         const query = `
-        INSERT INTO packages (name, version, score)
+        INSERT INTO public."Packages" (name, version, score)
         VALUES ($1, $2, $3) RETURNING id;
       `;
-        const values = [body.metadata.Name, body.metadata.Version, body.data.Content.length]; // Assuming score is based on content length for demonstration
+        const values = [body.metadata.Name, body.metadata.Version, 0.25]; // Assuming score is based on content length for demonstration
         console.log(`hi`);
         dbConfig.query(query, values)
           .then((res: { rows: { id: number }[] }) => {

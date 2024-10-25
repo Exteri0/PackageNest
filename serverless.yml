@@ -1,5 +1,4 @@
 # "org" ensures this Service is used with the correct Serverless Framework Access Key.
-org: exteri0
 # "service" is the name of this project. This will also be added to your AWS resource names.
 service: whatevefr
 
@@ -11,7 +10,7 @@ provider:
   iamRoleStatements:
     - Effect: "Allow"
       Action:
-        - "s3:PutObject"
+        - "s3:*"
       Resource:
         - "arn:aws:s3:::${env:S3_BUCKET_NAME}/*"
     - Effect: "Allow"
