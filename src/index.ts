@@ -22,7 +22,7 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
 });  */
 
 console.log("Before registering routes");
-console.log("testing the github actionasdasdass");
+console.log("testing the github actionSDASDSADASDASDasdasdass");
 routes(app);
 console.log("Routes registered");
 
