@@ -1,5 +1,7 @@
 'use strict';
 
+
+import { Request, Response, NextFunction, response } from "express";
 import awsSdk from "aws-sdk";
 import "dotenv/config";
 import { PutObjectRequest } from "aws-sdk/clients/s3";
@@ -193,22 +195,34 @@ export function packageByRegExGet(body: PackageQuery, xAuthorization: Authentica
  * @param xAuthorization AuthenticationToken 
  * @returns Promise<Package>
  */
-export async function packageCreate(body: Package, xAuthorization: AuthenticationToken) {
+export async function packageCreate(
+  body: Package,
+  xAuthorization: AuthenticationToken
+) {
+  console.log("Entered packageCreate service function");
+  console.log("Received body:", JSON.stringify(body));
+  console.log("Received xAuthorization:", xAuthorization);
+
   if (!body || !body.metadata || !body.data) {
-    throw {
-      message: "Invalid request body. 'metadata' and 'data' are required.",
-      status: 400,
-    };
+    console.error("Invalid request body");
+    throw new Error(
+      "Invalid request body. 'metadata' and 'data' are required."
+    );
   }
 
   if (!bucketName) {
-    throw {
-      message: "S3_BUCKET_NAME is not defined in the environment variables.",
-      status: 500,
-    };
+    console.error(
+      "S3_BUCKET_NAME is not defined in the environment variables."
+    );
+    throw new Error(
+      "S3_BUCKET_NAME is not defined in the environment variables."
+    );
   }
 
-  const s3Key = `packages/${body.metadata.Name}/v${body.metadata.Version}/package.json`;
+  const packageName = sanitizeInput(body.metadata.Name);
+  const packageVersion = sanitizeInput(body.metadata.Version);
+
+  const s3Key = `packages/${packageName}/v${packageVersion}/package.json`;
   const s3Params = {
     Bucket: bucketName,
     Key: s3Key,
@@ -217,32 +231,38 @@ export async function packageCreate(body: Package, xAuthorization: Authenticatio
   };
 
   try {
-    const [s3Data, dbRes] = await Promise.all([
-      s3.putObject(s3Params).promise(),
-      getDbPool().query(
-        `INSERT INTO public."packages" (name, version, score) VALUES ($1, $2, $3) RETURNING id;`,
-        [body.metadata.Name, body.metadata.Version, 0.25]
-      ),
-    ]);
-
+    console.log("Uploading package to S3 with key:", s3Key);
+    const s3Data = await s3.putObject(s3Params).promise();
     console.log(`Package uploaded successfully: ${s3Data.ETag}`);
-    console.log("Package inserted successfully:", dbRes.rows[0].id);
+
+    console.log("Inserting package into database");
+    const dbRes = await getDbPool().query(
+      `INSERT INTO public."packages" (name, version, score) VALUES ($1, $2, $3) RETURNING id;`,
+      [packageName, packageVersion, 0.25]
+    );
+    console.log("Package inserted successfully with ID:", dbRes.rows[0].id);
 
     const updatedBody = {
       ...body,
       metadata: {
         ...body.metadata,
+        dbId: dbRes.rows[0].id, // Include DB ID if needed
       },
     };
+    console.log("Returning updated body:", JSON.stringify(updatedBody));
     return updatedBody;
-  } catch (error) {
-    console.error("Error occurred:", error);
-    throw {
-      message: `Failed to upload package or insert into database: ${(error as Error).message}`,
-      status: 500,
-    };
+  } catch (error: any) {
+    console.error("Error occurred in packageCreate:", error);
+    throw new Error(
+      `Failed to upload package or insert into database: ${error.message}`
+    );
   }
 }
+
+function sanitizeInput(input: string): string {
+  return input.replace(/[^a-zA-Z0-9-_\.]/g, "");
+}
+
 /* BASE INPUT: Put it as body in postman
 
 {
@@ -383,24 +403,33 @@ export function packageUpdate(body: Package, id: PackageID, xAuthorization: Auth
  * @param xAuthorization AuthenticationToken 
  * @returns Promise<Array<PackageQuery>>
  */
-export function packagesList(body: Array<PackageQuery>, offset?: string, xAuthorization?: AuthenticationToken): Promise<Array<PackageQuery>> {
-  return new Promise(function(resolve) {
-    const examples: { [key: string]: Array<PackageQuery> } = {
-      'application/json': [
-        {
-          "Version": "1.2.3",
-          "ID": "123567192081501",
-          "Name": "Name"
-        },
-        {
-          "Version": "1.2.3",
-          "ID": "123567192081501",
-          "Name": "Name"
-        }
-      ]
-    };
-    resolve(examples['application/json']);
-  });
+export async function packagesList(
+  body: Array<PackageQuery>,
+  offset?: string,
+  xAuthorization?: AuthenticationToken
+): Promise<Array<PackageQuery>> {
+  console.log("Entered packagesList service function");
+  console.log("Received body:", body);
+  console.log("Received offset:", offset);
+  console.log("Received xAuthorization:", xAuthorization);
+
+  const examples: { [key: string]: Array<PackageQuery> } = {
+    "application/json": [
+      {
+        Version: "1.2.3",
+        ID: "123567192081501",
+        Name: "ExamplePackage1",
+      },
+      {
+        Version: "2.3.4",
+        ID: "987654321098765",
+        Name: "ExamplePackage2",
+      },
+    ],
+  };
+
+  console.log("Returning examples:", examples["application/json"]);
+  return examples["application/json"];
 }
 /*
 Test input:

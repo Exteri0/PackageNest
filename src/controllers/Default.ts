@@ -63,24 +63,28 @@ export const PackageByRegExGet = (
     });
 };
 
-export const PackageCreate = (
-  req: OpenApiRequest,
+export const PackageCreate = async (
+  req: Request,
   res: Response,
   next: NextFunction,
   body: any
-): void => {
-  const xAuthorization: Default.AuthenticationToken = {
-    token: req.headers.authorization
-      ? req.headers.authorization.toString()
-      : "",
-  };
-  Default.packageCreate(body, xAuthorization)
-    .then((response: any) => {
-      utils.writeJson(res, response);
-    })
-    .catch((response: any) => {
-      utils.writeJson(res, response);
-    });
+): Promise<void> => {
+  console.log("Entered PackageCreate controller function");
+  try {
+    const xAuthorization: Default.AuthenticationToken = {
+      token: req.headers.authorization?.toString() ?? "",
+    };
+    console.log("xAuthorization token:", xAuthorization.token);
+
+    const response = await Default.packageCreate(body, xAuthorization);
+    console.log("Received response from service:", response);
+
+    res.json(response);
+    console.log("Response sent from controller");
+  } catch (error: any) {
+    console.error("Error in PackageCreate controller:", error);
+    res.status(500).json({ error: error.message || "An error occurred" });
+  }
 };
 
 export const PackageDelete = (
@@ -185,25 +189,29 @@ export const PackageUpdate = (
     });
 };
 
-export const PackagesList = (
-  req: OpenApiRequest,
+export const PackagesList = async (
+  req: Request,
   res: Response,
   next: NextFunction,
   body: any,
   offset: string
-): void => {
-  const xAuthorization: Default.AuthenticationToken = {
-    token: req.headers.authorization
-      ? req.headers.authorization.toString()
-      : "",
-  };
-  Default.packagesList(body, offset, xAuthorization)
-    .then((response: any) => {
-      utils.writeJson(res, response);
-    })
-    .catch((response: any) => {
-      utils.writeJson(res, response);
-    });
+): Promise<void> => {
+  console.log("Entered PackagesList controller function");
+  try {
+    const xAuthorization: Default.AuthenticationToken = {
+      token: req.headers.authorization?.toString() ?? "",
+    };
+    console.log("xAuthorization token:", xAuthorization.token);
+
+    const response = await Default.packagesList(body, offset, xAuthorization);
+    console.log("Received response from service:", response);
+
+    res.json(response);
+    console.log("Response sent from controller");
+  } catch (error: any) {
+    console.error("Error in PackagesList controller:", error);
+    res.status(500).json({ error: error.message || "An error occurred" });
+  }
 };
 
 export const RegistryReset = (

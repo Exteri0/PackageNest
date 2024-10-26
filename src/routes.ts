@@ -4,15 +4,40 @@ import * as DefaultController  from "./controllers/Default";
 export default (app: Express) => {
 
   // POST /packages (PackagesList expects req, res, next, body, offset)
-  app.post("/packages", (req: Request, res: Response, next: NextFunction) => {
-    const offset = req.query.offset?.toString() ?? ""; // assuming offset comes from query parameters
-    DefaultController.PackagesList(req, res, next, req.body, offset);
-  });
+  app.post("/packages", async (req: Request, res: Response, next: NextFunction) => {
+      console.log("Received POST /packages request");
+      try {
+        const offset = req.query.offset?.toString() ?? "";
+        console.log("Offset:", offset);
+        console.log("Request Body:", req.body);
+
+        await DefaultController.PackagesList(req, res, next, req.body, offset);
+
+        console.log("Response sent successfully");
+      } catch (error) {
+        console.error("Error in /packages route handler:", error);
+        next(error);
+      }
+    }
+  );
+
 
   // POST /package (PackageCreate expects req, res, next, body)
-  app.post("/package", (req: Request, res: Response, next: NextFunction) => {
-    DefaultController.PackageCreate(req, res, next, req.body);
-  });
+  app.post("/package", async (req: Request, res: Response, next: NextFunction) => {
+      console.log("Received POST /package request");
+      try {
+        const body = req.body;
+        console.log("Request Body:", body);
+
+        await DefaultController.PackageCreate(req, res, next, body);
+
+        console.log("Response sent successfully");
+      } catch (error) {
+        console.error("Error in /package route handler:", error);
+        next(error);
+      }
+    }
+  );;
 
   // DELETE /reset (RegistryReset expects req, res, next)
   app.delete("/reset", (req: Request, res: Response, next: NextFunction) => {
