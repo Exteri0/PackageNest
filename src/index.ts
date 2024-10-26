@@ -1,4 +1,4 @@
-import express, { Request, Response } from "express";
+import express, { Request, Response, NextFunction } from "express";
 import cors from "cors";
 import routes from "./routes";
 import serverless from "serverless-http";
@@ -8,22 +8,20 @@ const port = 3000;
 
 app.use(cors());
 app.use(express.json());
-app.get("/", (req: Request, res: Response) => {
-  res.send("Hello, world!");
+// Error handling middleware
+app.use((err: any, req: Request, res: Response, next: NextFunction) => {
+  console.error("Unhandled error:", err);
+  res.status(500).json({ error: err.message || "An unexpected error occurred" });
 });
 
-// app.listen(port, () => {
-//   console.log(`Server is running on http://localhost:${port}`);
-//   routes(app);
-// });
+/* app.listen(port, () => {
+  console.log(`Server is running on http://localhost:${port}`);
+  routes(app);
+});  */
 
+console.log("Before registering routes");
 routes(app);
-
-// const server = awsServerlessExpress.createServer(app);
-
-// export const handler = (event: APIGatewayProxyEvent, context: Context) => {
-//   return awsServerlessExpress.proxy(server, event, context);
-// };
+console.log("Routes registered");
 
 const handler = serverless(app);
 export { handler };

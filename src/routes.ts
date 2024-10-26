@@ -1,119 +1,102 @@
-import { Express, Request, Response } from "express";
-import awsSdk from "aws-sdk";
-import "dotenv/config";
-import { PutObjectRequest } from "aws-sdk/clients/s3";
-
-const bucketName = process.env.S3_BUCKET_NAME;
-const s3 = new awsSdk.S3();
+import { Express, Request, Response, NextFunction } from "express";
+import * as DefaultController  from "./controllers/Default";
 
 export default (app: Express) => {
-  // POST /Packages
-  app.post("/packages", (req: Request, res: Response) => {
-    res.send(
-      "This is a POST request to /packages - Get packages from the registry."
-    );
-  });
 
-  // DELETE /reset
-  app.delete("/reset", (req: Request, res: Response) => {
-    res.send("This is a DELETE request to /reset - Reset the registry.");
-  });
+  // POST /packages (PackagesList expects req, res, next, body, offset)
+  app.post("/packages", async (req: Request, res: Response, next: NextFunction) => {
+      console.log("Received POST /packages request");
+      try {
+        const offset = req.query.offset?.toString() ?? "";
+        console.log("Offset:", offset);
+        console.log("Request Body:", req.body);
 
-  // GET /package/{id}
-  app.get("/package/:id", (req: Request, res: Response) => {
-    res.send(
-      `This is a GETrassadsad request to /package/${req.params.id} - Interact with the package with ID: ${req.params.id}`
-    );
-  });
+        await DefaultController.PackagesList(req, res, next, req.body, offset);
 
-  // PUT /package/{id}
-  app.put("/package/:id", (req: Request, res: Response) => {
-    const fileToUpload = {
-      userId: "123456",
-      email: "enrico@gmail.com",
-      city: "London",
-      country: "UK",
-    };
-    try {
-      const params = {
-        Bucket: bucketName,
-        Key: `storage/${req.params.id}`,
-        Body: JSON.stringify(fileToUpload),
-      };
-      console.log(
-        `Uploading file to S3 with the name ${bucketName}/${params.Key}`
-      );
-      s3.upload(params as PutObjectRequest, (err, data) => {
-        if (err) {
-          console.error(err);
-          res.status(500).send("Error uploading data: " + err);
-        } else {
-          console.log("Upload success", data.Location);
-          res.send("Upload success: " + data.Location);
-        }
-      });
-    } catch (err) {
-      console.error(err);
-      res.status(500).send("Error uploading data: " + err);
+        console.log("Response sent successfully");
+      } catch (error) {
+        console.error("Error in /packages route handler:", error);
+        next(error);
+      }
     }
+  );
+
+
+  // POST /package (PackageCreate expects req, res, next, body)
+  app.post("/package", async (req: Request, res: Response, next: NextFunction) => {
+      console.log("Received POST /package request");
+      try {
+        const body = req.body;
+        console.log("Request Body:", body);
+
+        await DefaultController.PackageCreate(req, res, next, body);
+
+        console.log("Response sent successfully");
+      } catch (error) {
+        console.error("Error in /package route handler:", error);
+        next(error);
+      }
+    }
+  );;
+
+  // DELETE /reset (RegistryReset expects req, res, next)
+  app.delete("/reset", (req: Request, res: Response, next: NextFunction) => {
+    DefaultController.RegistryReset(req, res, next);
   });
 
-  // DELETE /package/{id}
-  app.delete("/package/:id", (req: Request, res: Response) => {
-    res.send(
-      `This is a DELETE request to /package/${req.params.id} - Delete the version of package with ID: ${req.params.id}`
-    );
+  // GET /package/{id} (PackageRetrieve expects req, res, next)
+  app.get("/package/:id", (req: Request, res: Response, next: NextFunction) => {
+    DefaultController.PackageRetrieve(req, res, next);
   });
 
-  // POST /package
-  app.post("/package", (req: Request, res: Response) => {
-    res.send(
-      "This is a POST request to /package - Upload or Ingest a new package."
-    );
+  // PUT /package/{id} (PackageUpdate expects req, res, next, body)
+  app.put("/package/:id", (req: Request, res: Response, next: NextFunction) => {
+    DefaultController.PackageUpdate(req, res, next, req.body);
   });
 
-  // GET /package/{id}/rate
-  app.get("/package/:id/rate", (req: Request, res: Response) => {
-    res.send(
-      `This is a GET request to /package/${req.params.id}/rate - Get ratings for the package with ID: ${req.params.id}`
-    );
+  // DELETE /package/{id} (PackageDelete expects req, res, next)
+  app.delete("/package/:id", (req: Request, res: Response, next: NextFunction) => {
+    DefaultController.PackageDelete(req, res, next);
   });
 
-  // GET /package/{id}/cost
-  app.get("/package/:id/cost", (req: Request, res: Response) => {
-    res.send(
-      `This is a GET request to /package/${req.params.id}/cost - Get the cost of the package with ID: ${req.params.id}`
-    );
+  // GET /package/{id}/rate (PackageRate expects req, res, next)
+  app.get("/package/:id/rate", (req: Request, res: Response, next: NextFunction) => {
+    DefaultController.PackageRate(req, res, next);
   });
 
-  // PUT /authenticate
-  app.put("/authenticate", (req: Request, res: Response) => {
-    res.send("This is a PUT request to /authenticate - Authenticate a user.");
+  // GET /package/{id}/cost (packageIdCostGET expects req, res, next, dependency)
+  app.get("/package/:id/cost", (req: Request, res: Response, next: NextFunction) => {
+    const dependency = req.query.dependency === 'true';  // optional query param for dependency
+    DefaultController.packageIdCostGET(req, res, next, dependency);
   });
 
-  // GET /package/byName/{name}
-  app.get("/package/byName/:name", (req: Request, res: Response) => {
-    res.send(
-      `This is a GET request to /package/byName/${req.params.name} - Get the package by name: ${req.params.name}`
-    );
+  // PUT /authenticate (CreateAuthToken expects req, res, next, body)
+  app.put("/authenticate", (req: Request, res: Response, next: NextFunction) => {
+    DefaultController.CreateAuthToken(req, res, next, req.body);
   });
 
-  // POST /package/byRegEx
-  app.post("/package/byRegEx", (req: Request, res: Response) => {
-    res.send(
-      "This is a POST request to /package/byRegEx - Get packages fitting the regular expression."
-    );
+  // GET /package/byName/{name} (PackageByNameGet expects req, res, next)
+  app.get("/package/byName/:name", (req: Request, res: Response, next: NextFunction) => {
+    DefaultController.PackageByNameGet(req, res, next);
   });
 
-  // GET /tracks
-  app.get("/tracks", (req: Request, res: Response) => {
-    res.send(
-      "This is a GET request to /tracks - Get the list of tracks a student has planned."
-    );
+  // POST /package/byRegEx (PackageByRegExGet expects req, res, next, body)
+  app.post("/package/byRegEx", (req: Request, res: Response, next: NextFunction) => {
+    DefaultController.PackageByRegExGet(req, res, next, req.body);
   });
 
-  // GET /test
-  app.get("/test", (req: Request, res: Response) => {
-    res.send("This is a GET request to /test - Test the system.");
+  // GET /tracks (tracksGET expects req, res, next)
+  app.get("/tracks", (req: Request, res: Response, next: NextFunction) => {
+    DefaultController.tracksGET(req, res, next);
+  });
+
+  // GET /test (testGET expects req, res, next)
+  app.get("/test", (req: Request, res: Response, next: NextFunction) => {
+    DefaultController.testGET(req, res, next);
+  });
+
+  // GET /test/metrics/{metric_name} (testMetricNameGET expects req, res, next)
+  app.get("/test/metrics/:metric_name", (req: Request, res: Response, next: NextFunction) => {
+    DefaultController.testMetricNameGET(req, res, next);
   });
 };

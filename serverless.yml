@@ -1,5 +1,4 @@
 # "org" ensures this Service is used with the correct Serverless Framework Access Key.
-org: exteri0
 # "service" is the name of this project. This will also be added to your AWS resource names.
 service: whatevefr
 
@@ -11,7 +10,7 @@ provider:
   iamRoleStatements:
     - Effect: "Allow"
       Action:
-        - "s3:PutObject"
+        - "s3:*"
       Resource:
         - "arn:aws:s3:::${env:S3_BUCKET_NAME}/*"
     - Effect: "Allow"
@@ -32,6 +31,20 @@ functions:
           method: any
     environment:
       S3_BUCKET_NAME: ${env:S3_BUCKET_NAME}
+      AWS_ACCOUNT_ID: ${env:AWS_ACCOUNT_ID}
+      RDS_CLUSTER_NAME: ${env:RDS_CLUSTER_NAME}
+      RDS_USER: ${env:RDS_USER}
+      RDS_HOST: ${env:RDS_HOST}
+      RDS_DATABASE: ${env:RDS_DATABASE}
+      RDS_PASSWORD: ${env:RDS_PASSWORD}
+      RDS_PORT: ${env:RDS_PORT}
+    vpc:
+      securityGroupIds:
+        - ${env:SECURITY_GROUP_ID}
+      subnetIds:
+        - ${env:SUBNET_ID_1}
+        - ${env:SUBNET_ID_2}
+    timeout: 15
 
 package:
   patterns:

@@ -17,6 +17,7 @@
   "license": "Unlicense",
   "private": true,
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.676.0",
     "@octokit/graphql": "^8.1.1",
     "@types/cors": "^2.8.17",
     "aws-sdk": "^2.1691.0",
@@ -27,13 +28,18 @@
     "express": "^4.21.1",
     "js-yaml": "^3.3.0",
     "oas3-tools": "^2.2.3",
+    "pg": "^8.13.1",
+    "serverless": "^4.4.7",
     "serverless-http": "^3.2.0",
+    "sls": "^0.1.0",
     "swagger-ui-express": "^5.0.1",
     "winston": "^3.15.0"
   },
   "devDependencies": {
     "@octokit/types": "^13.6.1",
     "@types/node": "^22.7.5",
+    "@types/pg": "^8.11.10",
+    "cpx": "^1.5.0",
     "dotenv": "^16.4.5",
     "tsx": "^4.19.1",
     "typescript": "^5.6.3"
