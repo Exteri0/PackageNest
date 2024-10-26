@@ -11,7 +11,9 @@ app.use(express.json());
 // Error handling middleware
 app.use((err: any, req: Request, res: Response, next: NextFunction) => {
   console.error("Unhandled error:", err);
-  res.status(500).json({ error: err.message || "An unexpected error occurred" });
+  res
+    .status(500)
+    .json({ error: err.message || "An unexpected error occurred" });
 });
 
 /* app.listen(port, () => {
@@ -20,6 +22,7 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
 });  */
 
 console.log("Before registering routes");
+console.log("testing the github actions");
 routes(app);
 console.log("Routes registered");
 
