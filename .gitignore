@@ -137,3 +137,7 @@ dist
 #database make
 src/queries/resetDB.ts
 databasereset.sql
+.env*
+.flaskenv*
+!.env.project
+!.env.vault
