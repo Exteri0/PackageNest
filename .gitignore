@@ -136,3 +136,4 @@ dist
 
 #database make
 src/queries/resetDB.ts
+databasereset.sql
