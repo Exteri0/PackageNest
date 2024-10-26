@@ -3,8 +3,8 @@
 
 import { Request, Response, NextFunction, response } from "express";
 import awsSdk from "aws-sdk";
+import { executeSqlFile } from "../queries/resetDB";
 import "dotenv/config";
-import { PutObjectRequest } from "aws-sdk/clients/s3";
 import { getDbPool } from "./databaseConnection";
 
 const bucketName = process.env.S3_BUCKET_NAME;
@@ -456,10 +456,46 @@ Test input:
  * @param xAuthorization AuthenticationToken 
  * @returns Promise<void>
  */
-export function registryReset(xAuthorization: AuthenticationToken): Promise<void> {
-  return new Promise<void>((resolve) => {
-    resolve();
-  });
+export async function registryReset(
+  xAuthorization: AuthenticationToken
+): Promise<void> {
+  if (!bucketName) {
+    throw new Error("S3_BUCKET_NAME is not defined in the environment variables.");
+  }
+
+  console.log("Started registryReset");
+
+  try { 
+    // Step 1: Delete all packages from the S3 `packages` folder
+    console.log("Listing S3 objects in packages folder");
+    const listParams = {
+      Bucket: bucketName,
+      Prefix: "packages/"
+    };
+    const listedObjects = await s3.listObjectsV2(listParams).promise();
+
+    if (listedObjects.Contents && listedObjects.Contents.length > 0) {
+      console.log("Deleting S3 objects in packages folder");
+      const deleteParams = {
+        Bucket: bucketName,
+        Delete: {
+          Objects: listedObjects.Contents.map((item) => ({ Key: item.Key! }))
+        }
+      };
+      await s3.deleteObjects(deleteParams).promise();
+      console.log("All S3 packages deleted successfully");
+    } else {
+      console.log("No objects to delete in the S3 packages folder");
+    }
+
+    // Step 2: Reset RDS database
+
+    await executeSqlFile();
+
+  } catch (error: any) {
+    console.error("Error occurred during registry reset:", error);
+    throw new Error(`Failed to reset registry: ${error.message}`);
+  }
 }
 
 /**
@@ -515,3 +551,5 @@ export function testGET(xAuthorization: AuthenticationToken): Promise<Array<any>
     resolve(examples['application/json']);
   });
 }
+
+
