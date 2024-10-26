@@ -1,10 +1,11 @@
-import { dbConfig } from "../service/DefaultService"
+import { getDbPool } from "../service/databaseConnection"
+
 
 // Retrieve a user by ID
 export const getUserById = async (userId: number) => {
   const query = "SELECT * FROM users WHERE id = $1";
   try {
-    const res = await dbConfig.query(query, [userId]);
+    const res = await getDbPool().query(query, [userId]);
     return res.rows[0];
   } catch (error) {
     console.error("Error fetching user by ID:", error);
@@ -16,7 +17,7 @@ export const getUserById = async (userId: number) => {
 export const getUserByUsername = async (username: string) => {
   const query = "SELECT * FROM users WHERE username = $1";
   try {
-    const res = await dbConfig.query(query, [username]);
+    const res = await getDbPool().query(query, [username]);
     return res.rows[0];
   } catch (error) {
     console.error("Error fetching user by username:", error);
@@ -36,7 +37,7 @@ export const createUser = async (
     VALUES ($1, $2, $3, $4) 
     RETURNING *`;
   try {
-    const res = await dbConfig.query(query, [username, email, password, isAdmin]);
+    const res = await getDbPool().query(query, [username, email, password, isAdmin]);
     return res.rows[0];
   } catch (error) {
     console.error("Error creating user:", error);
@@ -56,7 +57,7 @@ export const updateUser = async (
     WHERE id = $3 
     RETURNING *`;
   try {
-    const res = await dbConfig.query(query, [username, email, userId]);
+    const res = await getDbPool().query(query, [username, email, userId]);
     return res.rows[0];
   } catch (error) {
     console.error("Error updating user:", error);
@@ -68,8 +69,8 @@ export const updateUser = async (
 export const deleteUserById = async (userId: number) => {
   const query = "DELETE FROM users WHERE id = $1 RETURNING *";
   try {
-    const res = await dbConfig.query(query, [userId]);
-    return res.rowCount > 0;
+    const res = await getDbPool().query(query, [userId]);
+    return res.rowCount !== null && res.rowCount > 0;
   } catch (error) {
     console.error("Error deleting user by ID:", error);
     throw error;
@@ -80,7 +81,7 @@ export const deleteUserById = async (userId: number) => {
 export const getAllUsers = async () => {
   const query = "SELECT * FROM users";
   try {
-    const res = await dbConfig.query(query);
+    const res = await getDbPool().query(query);
     return res.rows;
   } catch (error) {
     console.error("Error fetching all users:", error);
@@ -92,7 +93,7 @@ export const getAllUsers = async () => {
 export const setUserAdminStatus = async (userId: number, isAdmin: boolean) => {
   const query = "UPDATE users SET is_admin = $1 WHERE id = $2 RETURNING *";
   try {
-    const res = await dbConfig.query(query, [isAdmin, userId]);
+    const res = await getDbPool().query(query, [isAdmin, userId]);
     return res.rows[0];
   } catch (error) {
     console.error("Error setting user admin status:", error);

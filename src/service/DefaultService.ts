@@ -3,22 +3,11 @@
 import awsSdk from "aws-sdk";
 import "dotenv/config";
 import { PutObjectRequest } from "aws-sdk/clients/s3";
+import { getDbPool } from "./databaseConnection";
 
 const bucketName = process.env.S3_BUCKET_NAME;
 const s3 = new awsSdk.S3();
 
-// Import the 'pg' library
-const { Pool  } = require('pg');
-
-// Database connection configuration
-export const dbConfig = new Pool  ({
-  user: process.env.RDS_USER,            // PostgreSQL DB username
-  host: process.env.RDS_HOST,            // RDS endpoint (from AWS RDS console)
-  database: process.env.RDS_DATABASE,    // Your database name
-  password: process.env.RDS_PASSWORD,    // Your RDS password
-  port: process.env.RDS_PORT,            // Default PostgreSQL port
-  ssl: { rejectUnauthorized: false, },      // SSL configuration
-});
 
 /**
  * Types
@@ -204,63 +193,55 @@ export function packageByRegExGet(body: PackageQuery, xAuthorization: Authentica
  * @param xAuthorization AuthenticationToken 
  * @returns Promise<Package>
  */
-export function packageCreate(body: Package, xAuthorization: AuthenticationToken): Promise<Package> {
-  return new Promise(function (resolve, reject) {
-    if (!body || !body.metadata || !body.data) {
-      return reject({
-        message: "Invalid request body. 'metadata' and 'data' are required.",
-        status: 400
-      });
-    }
-
-    // Define the S3 key (path in the bucket) where the package will be stored
-    const s3Key = `packages/${body.metadata.Name}/v${body.metadata.Version}/package.json`;
-
-    const s3Params: PutObjectRequest = {
-      Bucket: bucketName!,
-      Key: s3Key,
-      Body: JSON.stringify(body),  // Package content in JSON format
-      ContentType: "application/json",
+export async function packageCreate(body: Package, xAuthorization: AuthenticationToken) {
+  if (!body || !body.metadata || !body.data) {
+    throw {
+      message: "Invalid request body. 'metadata' and 'data' are required.",
+      status: 400,
     };
+  }
 
-    // Upload the package to S3
-    s3.putObject(s3Params, function (err, data) {
-      if (err) {
-        reject({
-          message: `Failed to upload package to S3: ${err.message}`,
-          status: 500
-        });
-      } else {
-        console.log(`database name is: ${process.env.RDS_DATABASE}`);
-        console.log(`Package uploaded successfully: ${data.ETag}`);
+  if (!bucketName) {
+    throw {
+      message: "S3_BUCKET_NAME is not defined in the environment variables.",
+      status: 500,
+    };
+  }
 
-        const query = `
-        INSERT INTO public."packages" (name, version, score)
-        VALUES ($1, $2, $3) RETURNING id;
-      `;
-        const values = [body.metadata.Name, body.metadata.Version, 0.25]; // Assuming score is based on content length for demonstration
+  const s3Key = `packages/${body.metadata.Name}/v${body.metadata.Version}/package.json`;
+  const s3Params = {
+    Bucket: bucketName,
+    Key: s3Key,
+    Body: JSON.stringify(body),
+    ContentType: "application/json",
+  };
 
-        dbConfig.query(query, values)
-          .then((res: { rows: { id: number }[] }) => {
-              console.log('Package inserted successfully:', res.rows[0].id);
-              const updatedBody: Package = {
-                ...body,
-                metadata: {
-                  ...body.metadata
-                }
-              };
-              resolve(updatedBody); // Return the updated Package object
-          })
-          .catch((dbErr: Error) => {
-            console.error('Failed to insert package into the database:', dbErr.message);
-            reject({
-              message: `Failed to insert package into the database: ${dbErr.message}`,
-              status: 500
-            });
-          })
-        }
-    });
-  });
+  try {
+    const [s3Data, dbRes] = await Promise.all([
+      s3.putObject(s3Params).promise(),
+      getDbPool().query(
+        `INSERT INTO public."packages" (name, version, score) VALUES ($1, $2, $3) RETURNING id;`,
+        [body.metadata.Name, body.metadata.Version, 0.25]
+      ),
+    ]);
+
+    console.log(`Package uploaded successfully: ${s3Data.ETag}`);
+    console.log("Package inserted successfully:", dbRes.rows[0].id);
+
+    const updatedBody = {
+      ...body,
+      metadata: {
+        ...body.metadata,
+      },
+    };
+    return updatedBody;
+  } catch (error) {
+    console.error("Error occurred:", error);
+    throw {
+      message: `Failed to upload package or insert into database: ${(error as Error).message}`,
+      status: 500,
+    };
+  }
 }
 /* BASE INPUT: Put it as body in postman
 
