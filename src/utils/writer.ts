@@ -38,10 +38,10 @@ export function writeJson(response: any, arg1?: any, arg2?: number): void {
     code = 200;
   }
 
-  if (typeof payload === 'object') {
+  if (typeof payload === "object") {
     payload = JSON.stringify(payload, null, 2);
   }
 
-  response.writeHead(code, { 'Content-Type': 'application/json' });
+  response.writeHead(code, { "Content-Type": "application/json" });
   response.end(payload);
 }

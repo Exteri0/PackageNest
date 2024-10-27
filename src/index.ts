@@ -1,15 +1,15 @@
-import express, { Request, Response, NextFunction } from "express";
+import express, { Request, Response } from "express";
 import cors from "cors";
 import routes from "./routes";
 import serverless from "serverless-http";
 
 const app = express();
-const port = 3000;
+// const port = 3000;
 
 app.use(cors());
 app.use(express.json());
 // Error handling middleware
-app.use((err: any, req: Request, res: Response, next: NextFunction) => {
+app.use((err: Error, req: Request, res: Response) => {
   console.error("Unhandled error:", err);
   res
     .status(500)

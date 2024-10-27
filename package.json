@@ -9,7 +9,8 @@
     "build": "tsc",
     "test": "echo \"Error: no test specified\" && exit 1",
     "deploy": "sls deploy",
-    "dev": "sls dev"
+    "dev": "sls dev",
+    "lint": "eslint \"src/**/*.{js,mjs,cjs,ts,jsx,tsx}\""
   },
   "keywords": [
     "swagger"
@@ -36,12 +37,17 @@
     "winston": "^3.15.0"
   },
   "devDependencies": {
+    "@eslint/js": "^9.13.0",
     "@octokit/types": "^13.6.1",
     "@types/node": "^22.7.5",
     "@types/pg": "^8.11.10",
     "cpx": "^1.5.0",
     "dotenv": "^16.4.5",
+    "eslint": "^9.13.0",
+    "eslint-plugin-react": "^7.37.2",
+    "globals": "^15.11.0",
     "tsx": "^4.19.1",
-    "typescript": "^5.6.3"
+    "typescript": "^5.6.3",
+    "typescript-eslint": "^8.11.0"
   }
 }
