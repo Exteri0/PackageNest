@@ -19,6 +19,8 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
       - run: npm ci
+      - run: echo "is this working"
+      - run: ls -la
       - name: serverless deploy
         uses: serverless/github-action@v2
         with:
