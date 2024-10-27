@@ -22,7 +22,7 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
 });  */
 
 console.log("Before registering routes");
-console.log("PLEASE WORK sigh");
+console.log("PLEASE WORK sisadgh");
 routes(app);
 console.log("Routes registered");
 
