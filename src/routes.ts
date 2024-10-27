@@ -8,10 +8,11 @@ export default (app: Express) => {
       console.log("Received POST /packages request");
       try {
         const offset = req.query.offset?.toString() ?? "";
+        const body = req.body;
         console.log("Offset:", offset);
-        console.log("Request Body:", req.body);
+        console.log("Request Body:", body);
 
-        await DefaultController.PackagesList(req, res, next, req.body, offset);
+        await DefaultController.PackagesList(req, res, next, body, offset);
 
         console.log("Response sent successfully");
       } catch (error) {
