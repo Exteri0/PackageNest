@@ -1,4 +1,4 @@
-import express, { Request, Response } from "express";
+import express, { Request, Response, NextFunction } from "express";
 import cors from "cors";
 import routes from "./routes";
 import serverless from "serverless-http";
@@ -9,8 +9,10 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 // Error handling middleware
-app.use((err: Error, req: Request, res: Response) => {
+app.use((err: any, req: Request, res: Response, next: NextFunction) => {
   console.error("Unhandled error:", err);
+  console.log("Type of res:", typeof res);
+  console.log("res properties:", Object.keys(res));
   res
     .status(500)
     .json({ error: err.message || "An unexpected error occurred" });

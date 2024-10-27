@@ -194,7 +194,7 @@ export const PackagesList = async (
   res: Response,
   next: NextFunction,
   body: any,
-  offset: string
+  offset?: string
 ): Promise<void> => {
   console.log("Entered PackagesList controller function");
   try {

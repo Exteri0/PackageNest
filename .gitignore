@@ -141,3 +141,5 @@ databasereset.sql
 .flaskenv*
 !.env.project
 !.env.vault
+src/queries/localDBReset.ts
+src/queries/localDBReset.ts
