@@ -24,7 +24,7 @@ jobs:
       - name: serverless deploy
         uses: serverless/github-action@v2
         with:
-          args: -c serverless.yml
+          args: -c "cd . && serverless deploy"
         env:
           # SERVERLESS_ACCESS_KEY: ${{ secrets.SERVERLESS_ACCESS_KEY }}
           # or if using AWS credentials directly
@@ -42,4 +42,3 @@ jobs:
           SECURITY_GROUP_ID: ${{ secrets.SECURITY_GROUP_ID }}
           SUBNET_ID_1: ${{ secrets.SUBNET_ID_1 }}
           SUBNET_ID_2: ${{ secrets.SUBNET_ID_2 }}
-          SLS_INTERACTIVE_SETUP_ENABLE: 1
