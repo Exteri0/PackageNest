@@ -43,8 +43,7 @@ jobs:
           SUBNET_ID_1: ${{ secrets.SUBNET_ID_1 }}
           SUBNET_ID_2: ${{ secrets.SUBNET_ID_2 }}
       - run: ls -la
-      - run: cd this
-      - run: ls -la
+      - run: ls this
       - run: mv ./this/serverless-state.json ./this/cloudformation-template-update-stack.json ./this/cloudformation-template-create-stack.json ./this/build
       - name: serverless deploy
         uses: serverless/github-action@master
