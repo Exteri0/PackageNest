@@ -24,7 +24,7 @@ jobs:
       - name: serverless package
         uses: serverless/github-action@master
         with:
-          args: package --package this
+          args: deploy
         env:
           # SERVERLESS_ACCESS_KEY: ${{ secrets.SERVERLESS_ACCESS_KEY }}
           # or if using AWS credentials directly
@@ -42,26 +42,26 @@ jobs:
           SECURITY_GROUP_ID: ${{ secrets.SECURITY_GROUP_ID }}
           SUBNET_ID_1: ${{ secrets.SUBNET_ID_1 }}
           SUBNET_ID_2: ${{ secrets.SUBNET_ID_2 }}
-      - run: ls -la
-      - run: ls this
-      - name: serverless deploy
-        uses: serverless/github-action@master
-        with:
-          args: deploy --package this
-        env:
-          # SERVERLESS_ACCESS_KEY: ${{ secrets.SERVERLESS_ACCESS_KEY }}
-          # or if using AWS credentials directly
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
-          AWS_REGION: ${{ secrets.AWS_REGION }}
-          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
-          RDS_CLUSTER_NAME: ${{ secrets.RDS_CLUSTER_NAME }}
-          RDS_USER: ${{ secrets.RDS_USER }}
-          RDS_HOST: ${{ secrets.RDS_HOST }}
-          RDS_DATABASE: ${{ secrets.RDS_DATABASE }}
-          RDS_PASSWORD: ${{ secrets.RDS_PASSWORD }}
-          RDS_PORT: ${{ secrets.RDS_PORT }}
-          SECURITY_GROUP_ID: ${{ secrets.SECURITY_GROUP_ID }}
-          SUBNET_ID_1: ${{ secrets.SUBNET_ID_1 }}
-          SUBNET_ID_2: ${{ secrets.SUBNET_ID_2 }}
+      # - run: ls -la
+      # - run: ls this
+      # - name: serverless deploy
+      #   uses: serverless/github-action@master
+      #   with:
+      #     args: deploy --package this
+      #   env:
+      #     # SERVERLESS_ACCESS_KEY: ${{ secrets.SERVERLESS_ACCESS_KEY }}
+      #     # or if using AWS credentials directly
+      #     AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      #     AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      #     S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
+      #     AWS_REGION: ${{ secrets.AWS_REGION }}
+      #     AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+      #     RDS_CLUSTER_NAME: ${{ secrets.RDS_CLUSTER_NAME }}
+      #     RDS_USER: ${{ secrets.RDS_USER }}
+      #     RDS_HOST: ${{ secrets.RDS_HOST }}
+      #     RDS_DATABASE: ${{ secrets.RDS_DATABASE }}
+      #     RDS_PASSWORD: ${{ secrets.RDS_PASSWORD }}
+      #     RDS_PORT: ${{ secrets.RDS_PORT }}
+      #     SECURITY_GROUP_ID: ${{ secrets.SECURITY_GROUP_ID }}
+      #     SUBNET_ID_1: ${{ secrets.SUBNET_ID_1 }}
+      #     SUBNET_ID_2: ${{ secrets.SUBNET_ID_2 }}
