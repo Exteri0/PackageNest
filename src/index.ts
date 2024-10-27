@@ -22,9 +22,7 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
 });  */
 
 console.log("Before registering routes");
-console.log(
-  "GITHUBA CTIONS TESsdasdsadasTIsadasdasdasdsdsadasdasNG AGAINAS DASDAS"
-);
+console.log("homie");
 routes(app);
 console.log("Routes registered");
 
