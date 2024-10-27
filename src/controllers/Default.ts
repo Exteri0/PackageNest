@@ -201,12 +201,22 @@ export const PackagesList = async (
     const xAuthorization: Default.AuthenticationToken = {
       token: req.headers.authorization?.toString() ?? "",
     };
-    console.log("xAuthorization token:", xAuthorization.token);
+    console.log("xAuthorization token received");
 
-    const response = await Default.packagesList(body, offset, xAuthorization);
+    const response = await Default.packagesList(
+      body,
+      offset,
+      xAuthorization
+    );
     console.log("Received response from service:", response);
 
-    res.json(response);
+    // Set the offset for the next page in the response header
+    if (response.nextOffset !== null) {
+      res.setHeader("X-Next-Offset", response.nextOffset.toString());
+    }
+
+    // Send the packages in the response body
+    res.json(response.packages);
     console.log("Response sent from controller");
   } catch (error: any) {
     console.error("Error in PackagesList controller:", error);

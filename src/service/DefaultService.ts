@@ -6,6 +6,7 @@ import awsSdk from "aws-sdk";
 import { executeSqlFile } from "../queries/resetDB";
 import "dotenv/config";
 import { getDbPool } from "./databaseConnection";
+import * as packageQueries from "../queries/packageQueries"; 
 
 const bucketName = process.env.S3_BUCKET_NAME;
 const s3 = new awsSdk.S3();
@@ -14,6 +15,11 @@ const s3 = new awsSdk.S3();
 /**
  * Types
  */
+export interface PackagesListResponse {
+  packages: Package[];
+  nextOffset: number | null;
+}
+
 export interface AuthenticationRequest {
   User: {
     name: string;
@@ -236,17 +242,14 @@ export async function packageCreate(
     console.log(`Package uploaded successfully: ${s3Data.ETag}`);
 
     console.log("Inserting package into database");
-    const dbRes = await getDbPool().query(
-      `INSERT INTO public."packages" (name, version, score) VALUES ($1, $2, $3) RETURNING id;`,
-      [packageName, packageVersion, 0.25]
-    );
-    console.log("Package inserted successfully with ID:", dbRes.rows[0].id);
+    const packageId = await packageQueries.insertPackage(packageName, packageVersion); 
+
+    console.log("Package inserted successfully with ID:", packageId);
 
     const updatedBody = {
       ...body,
       metadata: {
         ...body.metadata,
-        dbId: dbRes.rows[0].id, // Include DB ID if needed
       },
     };
     console.log("Returning updated body:", JSON.stringify(updatedBody));
@@ -404,32 +407,135 @@ export function packageUpdate(body: Package, id: PackageID, xAuthorization: Auth
  * @returns Promise<Array<PackageQuery>>
  */
 export async function packagesList(
-  body: Array<PackageQuery>,
+  body: PackageQuery[],
   offset?: string,
   xAuthorization?: AuthenticationToken
-): Promise<Array<PackageQuery>> {
+): Promise<PackagesListResponse> {
   console.log("Entered packagesList service function");
-  console.log("Received body:", body);
+  console.log("Received body:", JSON.stringify(body));
   console.log("Received offset:", offset);
   console.log("Received xAuthorization:", xAuthorization);
 
-  const examples: { [key: string]: Array<PackageQuery> } = {
-    "application/json": [
-      {
-        Version: "1.2.3",
-        ID: "123567192081501",
-        Name: "ExamplePackage1",
-      },
-      {
-        Version: "2.3.4",
-        ID: "987654321098765",
-        Name: "ExamplePackage2",
-      },
-    ],
-  };
+  const limit = 10; // Number of items per page
+  const offsetValue = offset ? parseInt(offset, 10) : 0;
 
-  console.log("Returning examples:", examples["application/json"]);
-  return examples["application/json"];
+  try {
+    let queryParams: any[] = [];
+    let whereClauses: string[] = [];
+
+    if (body && body.length > 0) {
+      // Handle special case: Name is "*"
+      if (body.length === 1 && body[0].Name === "*") {
+        // No where clause, select all packages
+        console.log("Selecting all packages");
+      } else {
+        let queryIndex = 1;
+        let packageConditions: string[] = [];
+
+        for (const pkgQuery of body) {
+          let conditions: string[] = [];
+          const queryValues: any[] = [];
+
+          // Ensure only one Version format per query
+          if (pkgQuery.Version) {
+            const versionFormats = [
+              /^\d+\.\d+\.\d+$/, // Exact version
+              /^\d+\.\d+\.\d+-\d+\.\d+\.\d+$/, // Bounded range
+              /^\^\d+\.\d+\.\d+$/, // Carat notation
+              /^~\d+\.\d+\.\d+$/, // Tilde notation
+            ];
+            const matches = versionFormats.filter((regex) =>
+              regex.test(pkgQuery.Version)
+            );
+            if (matches.length !== 1) {
+              throw new Error(
+                `Invalid or ambiguous version format: ${pkgQuery.Version}`
+              );
+            }
+          }
+
+          // Handle Name
+          if (pkgQuery.Name) {
+            conditions.push(`name = $${queryIndex}`);
+            queryValues.push(pkgQuery.Name);
+            queryIndex++;
+          }
+
+          // Handle ID
+          if (pkgQuery.ID) {
+            conditions.push(`id = $${queryIndex}`);
+            queryValues.push(pkgQuery.ID);
+            queryIndex++;
+          }
+
+          // Handle Version
+          if (pkgQuery.Version) {
+            const version = pkgQuery.Version.trim();
+
+            if (/^\d+\.\d+\.\d+$/.test(version)) {
+              // Exact version
+              conditions.push(`version = $${queryIndex}`);
+              queryValues.push(version);
+              queryIndex++;
+            } else if (/^\d+\.\d+\.\d+-\d+\.\d+\.\d+$/.test(version)) {
+              // Bounded range
+              const [startVersion, endVersion] = version.split("-");
+              conditions.push(
+                `version >= $${queryIndex} AND version <= $${queryIndex + 1}`
+              );
+              queryValues.push(startVersion, endVersion);
+              queryIndex += 2;
+            } else if (/^\^\d+\.\d+\.\d+$/.test(version)) {
+              // Carat notation
+              const baseVersion = version.substring(1);
+              const [major] = baseVersion.split(".");
+              conditions.push(`version LIKE $${queryIndex}`);
+              queryValues.push(`${major}.%`);
+              queryIndex++;
+            } else if (/^~\d+\.\d+\.\d+$/.test(version)) {
+              // Tilde notation
+              const baseVersion = version.substring(1);
+              const [major, minor] = baseVersion.split(".");
+              conditions.push(`version LIKE $${queryIndex}`);
+              queryValues.push(`${major}.${minor}.%`);
+              queryIndex++;
+            } else {
+              throw new Error(`Invalid version format: ${version}`);
+            }
+          }
+
+          if (conditions.length > 0) {
+            const conditionString = conditions.join(" AND ");
+            packageConditions.push(`(${conditionString})`);
+            queryParams.push(...queryValues);
+          }
+        }
+
+        if (packageConditions.length > 0) {
+          whereClauses.push(packageConditions.join(" OR "));
+        }
+      }
+    }
+
+    // Prepare query conditions and parameters
+    const packages = await packageQueries.getPackages(
+      whereClauses,
+      queryParams,
+      limit,
+      offsetValue
+    );
+
+    // Determine if there is a next page
+    const nextOffset = packages.length === limit ? offsetValue + limit : null;
+
+    return {
+      packages,
+      nextOffset,
+    };
+  } catch (error) {
+    console.error("Error in packagesList:", error);
+    throw error;
+  }
 }
 /*
 Test input:
