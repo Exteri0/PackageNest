@@ -42,3 +42,4 @@ jobs:
           SECURITY_GROUP_ID: ${{ secrets.SECURITY_GROUP_ID }}
           SUBNET_ID_1: ${{ secrets.SUBNET_ID_1 }}
           SUBNET_ID_2: ${{ secrets.SUBNET_ID_2 }}
+          SLS_INTERACTIVE_SETUP_ENABLE: 1
