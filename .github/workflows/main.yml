@@ -42,7 +42,7 @@ jobs:
           SECURITY_GROUP_ID: ${{ secrets.SECURITY_GROUP_ID }}
           SUBNET_ID_1: ${{ secrets.SUBNET_ID_1 }}
           SUBNET_ID_2: ${{ secrets.SUBNET_ID_2 }}
-          SERVERLESS_ACCESS_KEY: AKi0MZnFl461zSKK9MQq4Z0bVu1vFX09uTVRkK10mPep3
+          SERVERLESS_ACCESS_KEY: ${{ secrets.SERVERLESS_ACCESS_KEY }}
       # - run: ls -la
       # - run: ls this
       # - name: serverless deploy
