@@ -338,7 +338,7 @@ export async function packageCreate(
     console.error("Error occurred in packageCreate:", error);
     throw new CustomError(
       `Failed to upload package or insert into database: ${error.message}`,
-      500
+      409
     );
   }
 }
