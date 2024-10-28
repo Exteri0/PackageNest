@@ -6,6 +6,7 @@ import { executeSqlFile } from "../queries/resetDB";
 import "dotenv/config";
 import { getDbPool } from "./databaseConnection";
 import * as packageQueries from "../queries/packageQueries";
+import {calculateMetrics} from "../Metrics/metricExport";
 import { CustomError } from "../utils/types";
 
 const bucketName = process.env.S3_BUCKET_NAME;
@@ -63,14 +64,14 @@ export interface PackageCost {
 }
 
 export interface PackageRating {
-  GoodPinningPractice: number;
   CorrectnessLatency: number;
-  PullRequestLatency: number;
   RampUpLatency: number;
-  PullRequest: number;
   LicenseScore: number;
   BusFactorLatency: number;
   LicenseScoreLatency: number;
+  PullRequest: number;
+  PullRequestLatency: number;
+  GoodPinningPractice: number;
   GoodPinningPracticeLatency: number;
   Correctness: number;
   ResponsiveMaintainerLatency: number;
@@ -333,7 +334,7 @@ export async function packageCreate(
     };
 
     console.log("Returning updated body:", JSON.stringify(response));
-    return response;
+    return Promise.resolve(response);
   } catch (error: any) {
     console.error("Error occurred in packageCreate:", error);
     throw new CustomError(
@@ -415,11 +416,8 @@ export function packageIdCostGET(
  * @param xAuthorization AuthenticationToken
  * @returns Promise<PackageRating>
  */
-export function packageRate(
-  id: PackageID,
-  xAuthorization: AuthenticationToken
-): Promise<PackageRating> {
-  return new Promise(function (resolve) {
+export function packageRate(id: PackageID, xAuthorization: AuthenticationToken): Promise<PackageRating> {
+  /* return new Promise(function(resolve) {
     const examples: { [key: string]: PackageRating } = {
       "application/json": {
         GoodPinningPractice: 4.145608029883936,
@@ -440,8 +438,44 @@ export function packageRate(
         BusFactor: 0.8008281904610115,
       },
     };
-    resolve(examples["application/json"]);
-  });
+    resolve(examples['application/json']);
+  }); */
+  const testOutput: any = calculateMetrics("");
+  let response: PackageRating = {
+    GoodPinningPractice: 0,
+    CorrectnessLatency: 0,
+    PullRequestLatency: 0,
+    RampUpLatency: 0,
+    PullRequest: 0,
+    LicenseScore: 0,
+    BusFactorLatency: 0,
+    LicenseScoreLatency: 0,
+    GoodPinningPracticeLatency: 0,
+    Correctness: 0,
+    ResponsiveMaintainerLatency: 0,
+    NetScoreLatency: 0,
+    NetScore: 0,
+    ResponsiveMaintainer: 0,
+    RampUp: 0,
+    BusFactor: 0,
+  };
+  response.BusFactor = testOutput.BusFactor;
+  response.Correctness = testOutput.Correctness;
+  response.GoodPinningPractice = testOutput.GoodPinningPractice;
+  response.LicenseScore = testOutput.LicenseScore;
+  response.NetScore = testOutput.NetScore;
+  response.PullRequest = testOutput.PullRequest;
+  response.RampUp = testOutput.RampUp;
+  response.ResponsiveMaintainer = testOutput.ResponsiveMaintainer;
+  response.BusFactorLatency = testOutput.BusFactor_Latency;
+  response.CorrectnessLatency = testOutput.Correctness_Latency;
+  response.GoodPinningPracticeLatency = testOutput.GoodPinningPracticeLatency;
+  response.LicenseScoreLatency = testOutput.LicenseScore_Latency;
+  response.NetScoreLatency = testOutput.NetScore_Latency;
+  response.PullRequestLatency = testOutput.PullRequest_Latency;
+  response.RampUpLatency = testOutput.RampUp_Latency;
+  response.ResponsiveMaintainerLatency = testOutput.ResponsiveMaintainer_Latency;
+  return Promise.resolve(response);
 }
 
 /**

@@ -2,9 +2,9 @@ name: Node.js CI
 
 on:
   push:
-    branches: [prod]
+    branches: [main, prod]
   pull_request:
-    branches: [prod]
+    branches: [main, prod]
 
 jobs:
   test:
@@ -34,6 +34,6 @@ jobs:
       - name: Use Node.js
         uses: actions/setup-node@v2
         with:
-          node-version: "14"
+          node-version: "18"
       - run: npm install
       - run: npm run lint

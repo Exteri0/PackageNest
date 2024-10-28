@@ -117,10 +117,7 @@ export default (app: Express) => {
   });
 
   // GET /test/metrics/{metric_name} (testMetricNameGET expects req, res, next)
-  app.get(
-    "/test/metrics/:metric_name",
-    (req: Request, res: Response, next: NextFunction) => {
-      DefaultController.testMetricNameGET(req, res, next);
-    }
-  );
+  /* app.get("/test/metrics/:metric_name", (req: Request, res: Response, next: NextFunction) => {
+    DefaultController.testMetricNameGET(req, res, next);
+  }); */
 };

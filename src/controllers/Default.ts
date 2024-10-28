@@ -3,7 +3,7 @@
 import { Request, Response, NextFunction, response } from "express";
 import * as utils from "../utils/writer";
 import * as Default from "../service/DefaultService";
-import * as Metrics from "../Metrics/metricExport";
+import {calculateMetrics} from "../Metrics/metricExport";
 import { CustomError, OpenApiRequest } from "../utils/types";
 
 // Things with an input like offset might cause trouble
@@ -281,16 +281,12 @@ export const testGET = (
     });
 };
 
-export const testMetricNameGET = (
+/* export const testMetricNameGET = (
   req: OpenApiRequest,
   res: Response,
   next: NextFunction
 ): void => {
-  const metricName: Metrics.metricInterface = {
-    name: req.openapi?.pathParams?.metric_name
-      ? req.openapi.pathParams.metric_name
-      : "",
-  };
+  const metricName: calculate = {name: req.openapi?.pathParams?.metric_name? req.openapi.pathParams.metric_name : ""}; 
   const xAuthorization: Default.AuthenticationToken = {
     token: req.headers.authorization
       ? req.headers.authorization.toString()
@@ -305,4 +301,4 @@ export const testMetricNameGET = (
         utils.writeJson(res, response);
       });
   }
-};
+}; */
