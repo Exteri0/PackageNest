@@ -39,6 +39,7 @@ functions:
       RDS_DATABASE: ${env:RDS_DATABASE}
       RDS_PASSWORD: ${env:RDS_PASSWORD}
       RDS_PORT: ${env:RDS_PORT}
+      MY_TOKEN: ${env:MY_TOKEN}
     vpc:
       securityGroupIds:
         - ${env:SECURITY_GROUP_ID}

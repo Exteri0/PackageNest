@@ -8,7 +8,7 @@ const defaultName = "cloudinary_npm";
 
 const githubToken = process.env.MY_TOKEN || "";
 if (!githubToken) {
-  console.error("GITHUB_TOKEN is not defined");
+  console.error("MY_TOKEN is not defined");
   process.exit(1);
 }
 

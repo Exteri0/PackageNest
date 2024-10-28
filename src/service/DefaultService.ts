@@ -440,7 +440,7 @@ export async function packageRate(id: PackageID, xAuthorization: AuthenticationT
     };
     resolve(examples['application/json']);
   }); */
-  const testOutput: any = calculateMetrics("");
+  const testOutput: any = await calculateMetrics("");
   let response: PackageRating = {
     GoodPinningPractice: 0,
     CorrectnessLatency: 0,

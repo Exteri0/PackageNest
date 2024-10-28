@@ -34,10 +34,10 @@ export async function getBusFactorJSON(
 
   // Validate the token
   if (!token) {
-    logger.error("GITHUB_TOKEN is not defined");
+    logger.error("MY_TOKEN is not defined");
     process.exit(1);
   } else if (!token.includes("ghp_")) {
-    logger.error("Invalid GITHUB_TOKEN");
+    logger.error("Invalid MY_TOKEN");
     process.exit(1);
   }
 
