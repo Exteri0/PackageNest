@@ -224,13 +224,7 @@ export async function packageCreate(
   console.log("Received xAuthorization:", xAuthorization);
 
   // Check if required fields are present in body
-  if (
-    !body ||
-    !body.Name ||
-    !body.Content ||
-    !body.JSProgram ||
-    !body.debloat
-  ) {
+  if (!body || !body.Name || !body.Content || !body.JSProgram) {
     console.error(
       "Invalid request body: 'Name', 'Content', and 'JSProgram' are required."
     );
