@@ -3,7 +3,7 @@ name: Deploy production branch
 on:
   push:
     branches:
-      - prod
+      - main
 
 jobs:
   deploy:
