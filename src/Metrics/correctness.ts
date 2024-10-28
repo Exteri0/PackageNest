@@ -1,54 +1,33 @@
+// correctness_metric.ts
+
 import { graphql, GraphqlResponseError } from "@octokit/graphql";
 
+const defaultOwner = "cloudinary";
+const defaultName = "cloudinary_npm";
 
-
-export interface CorrectnessInterface {
-  repository: {
-    issues: {
-      totalCount: number;
-    };
-    closedIssues: {
-      totalCount: number;
-    };
-    pullRequests: {
-      totalCount: number;
-    };
-    releases: {
-      totalCount: number;
-    };
-    defaultBranchRef: {
-      target: {
-        history: {
-          totalCount: number;
-        };
-      };
-    };
-  };
+const githubToken = process.env.GITHUB_TOKEN || "";
+if (!githubToken) {
+  console.error("GITHUB_TOKEN is not defined");
+  process.exit(1);
 }
+
+const graphqlWithAuth = graphql.defaults({
+  headers: {
+    authorization: `token ${githubToken}`,
+  },
+});
 
 function getLatency(startTime: number): number {
-  return performance.now() - startTime;
+  return Number(((performance.now() - startTime) / 1000).toFixed(3));
 }
 
-export async function getCorrectnessJSON(
-  owner: string = "cloudinary",
-  name: string = "cloudinary_npm",
-  token: string | undefined = process.env.GITHUB_TOKEN
+export async function calculateCorrectnessMetric(
+  owner: string = defaultOwner,
+  name: string = defaultName
 ): Promise<{ Correctness: number; Correctness_Latency: number }> {
+  console.log(`Calculating correctness metric for ${owner}/${name}`);
   const startTime = performance.now();
-  if (!token) {
-    console.log("GITHUB_TOKEN is not defined");
-    process.exit(1);
-  } else if (!token.includes("ghp_")) {
-    console.log("Invalid GITHUB_TOKEN");
-    process.exit(1);
-  }
 
-  const graphqlWithAuth = graphql.defaults({
-    headers: {
-      authorization: `token ${token}`,
-    },
-  });
   const query = `
   query {
     repository(owner: "${owner}", name: "${name}") {
@@ -76,38 +55,42 @@ export async function getCorrectnessJSON(
         }
       }
     }
-  }`;
-
+  }
+  `;
+  console.log(`Query: ${query}`);
   try {
-    const response = await graphqlWithAuth<CorrectnessInterface>(query);
+    const response: any = await graphqlWithAuth(query);
+    console.log("Correctness GraphQL response successful");
     const repo = response.repository;
-
     const openIssues = repo.issues.totalCount;
     const closedIssues = repo.closedIssues.totalCount;
     const openPullRequests = repo.pullRequests.totalCount;
     const releases = repo.releases.totalCount;
     const recentCommits = repo.defaultBranchRef.target.history.totalCount;
-
+    // Calculate issue ratio
     const issueRatio = closedIssues / (openIssues + closedIssues) || 0;
+    // Calculate PR ratio
     const prRatio = releases / (openPullRequests + releases) || 0;
+    // Calculate recent commit ratio (past 30 days and max at 1)
     const recentCommitRatio = Math.min(recentCommits / 30, 1);
-
+    // Calculate correctness score (ensuring it's between 0 and 1)
     const correctnessScore = Number(
       Math.max(
         0,
-        Math.min((issueRatio + prRatio + recentCommitRatio) / 3)
+        Math.min((issueRatio + prRatio + recentCommitRatio) / 3, 1)
       ).toFixed(3)
     );
-
+    console.log(`Correctness score calculated: ${correctnessScore}`);
     return {
       Correctness: correctnessScore,
       Correctness_Latency: getLatency(startTime),
     };
   } catch (error) {
-    console.error("Error fetching correctness data:", error);
-    return {
-      Correctness: 0,
-      Correctness_Latency: getLatency(startTime),
-    };
+    if (error instanceof GraphqlResponseError) {
+      console.error(error.message);
+    } else {
+      console.error(error);
+    }
+    return { Correctness: 0, Correctness_Latency: getLatency(startTime) };
   }
 }

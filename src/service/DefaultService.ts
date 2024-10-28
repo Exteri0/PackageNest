@@ -6,6 +6,7 @@ import { executeSqlFile } from "../queries/resetDB";
 import "dotenv/config";
 import { getDbPool } from "./databaseConnection";
 import * as packageQueries from "../queries/packageQueries";
+import {calculateMetrics} from "../Metrics/metricExport";
 import { CustomError } from "../utils/types";
 
 const bucketName = process.env.S3_BUCKET_NAME;
@@ -63,14 +64,14 @@ export interface PackageCost {
 }
 
 export interface PackageRating {
-  GoodPinningPractice: number;
   CorrectnessLatency: number;
-  PullRequestLatency: number;
   RampUpLatency: number;
-  PullRequest: number;
   LicenseScore: number;
   BusFactorLatency: number;
   LicenseScoreLatency: number;
+  PullRequest: number;
+  PullRequestLatency: number;
+  GoodPinningPractice: number;
   GoodPinningPracticeLatency: number;
   Correctness: number;
   ResponsiveMaintainerLatency: number;
@@ -333,7 +334,7 @@ export async function packageCreate(
     };
 
     console.log("Returning updated body:", JSON.stringify(response));
-    return response;
+    return Promise.resolve(response);
   } catch (error: any) {
     console.error("Error occurred in packageCreate:", error);
     throw new CustomError(
@@ -415,11 +416,8 @@ export function packageIdCostGET(
  * @param xAuthorization AuthenticationToken
  * @returns Promise<PackageRating>
  */
-export function packageRate(
-  id: PackageID,
-  xAuthorization: AuthenticationToken
-): Promise<PackageRating> {
-  return new Promise(function (resolve) {
+export function packageRate(id: PackageID, xAuthorization: AuthenticationToken): Promise<PackageRating> {
+  /* return new Promise(function(resolve) {
     const examples: { [key: string]: PackageRating } = {
       "application/json": {
         GoodPinningPractice: 4.145608029883936,
@@ -440,8 +438,44 @@ export function packageRate(
         BusFactor: 0.8008281904610115,
       },
     };
-    resolve(examples["application/json"]);
-  });
+    resolve(examples['application/json']);
+  }); */
+  const testOutput: any = calculateMetrics("");
+  let response: PackageRating = {
+    GoodPinningPractice: 0,
+    CorrectnessLatency: 0,
+    PullRequestLatency: 0,
+    RampUpLatency: 0,
+    PullRequest: 0,
+    LicenseScore: 0,
+    BusFactorLatency: 0,
+    LicenseScoreLatency: 0,
+    GoodPinningPracticeLatency: 0,
+    Correctness: 0,
+    ResponsiveMaintainerLatency: 0,
+    NetScoreLatency: 0,
+    NetScore: 0,
+    ResponsiveMaintainer: 0,
+    RampUp: 0,
+    BusFactor: 0,
+  };
+  response.BusFactor = testOutput.BusFactor;
+  response.Correctness = testOutput.Correctness;
+  response.GoodPinningPractice = testOutput.GoodPinningPractice;
+  response.LicenseScore = testOutput.LicenseScore;
+  response.NetScore = testOutput.NetScore;
+  response.PullRequest = testOutput.PullRequest;
+  response.RampUp = testOutput.RampUp;
+  response.ResponsiveMaintainer = testOutput.ResponsiveMaintainer;
+  response.BusFactorLatency = testOutput.BusFactor_Latency;
+  response.CorrectnessLatency = testOutput.Correctness_Latency;
+  response.GoodPinningPracticeLatency = testOutput.GoodPinningPracticeLatency;
+  response.LicenseScoreLatency = testOutput.LicenseScore_Latency;
+  response.NetScoreLatency = testOutput.NetScore_Latency;
+  response.PullRequestLatency = testOutput.PullRequest_Latency;
+  response.RampUpLatency = testOutput.RampUp_Latency;
+  response.ResponsiveMaintainerLatency = testOutput.ResponsiveMaintainer_Latency;
+  return Promise.resolve(response);
 }
 
 /**
@@ -452,28 +486,74 @@ export function packageRate(
  * @param id PackageID
  * @returns Promise<Package>
  */
-export function packageRetrieve(
+export async function packageRetrieve(
   xAuthorization: AuthenticationToken,
   id: PackageID
-): Promise<Package> {
-  return new Promise(function (resolve) {
-    const examples: { [key: string]: Package } = {
-      "application/json": {
-        metadata: {
-          Version: "1.2.3",
-          ID: "123567192081501",
-          Name: "Name",
-        },
-        data: {
-          Content: "Content",
-          debloat: true,
-          JSProgram: "JSProgram",
-          URL: "URL1",
-        },
-      },
+) {
+  console.log("Entered packageRetrieve function with ID:", id.id);
+  console.log("Received xAuthorization:", xAuthorization);
+
+  if (!bucketName) {
+    console.error("S3_BUCKET_NAME is not defined in the environment variables.");
+    throw new CustomError("S3_BUCKET_NAME is not defined in the environment variables.", 500);
+  }
+
+  try {
+    // Retrieve package metadata from the packages table using the provided ID
+    const metadataQuery = `
+      SELECT p.name as packageName, p.version as packageVersion, p.package_id as packageId, pd.url as packageURL, pd.js_program as packageJS
+      FROM public."packages" AS p
+      JOIN public."package_data" AS pd ON p.id = pd.package_id
+      WHERE p.id = $1
+    `;
+    const metadataValues = [id.id];
+
+    const metadataResult = await getDbPool().query(metadataQuery, metadataValues);
+    const metadata = metadataResult.rows[0];
+
+    if (!metadata) {
+      console.error("Package not found with ID:", id.id);
+      throw new CustomError("Package not found.", 404);
+    }
+
+    // Construct the S3 key to retrieve the zip file based on package_id
+    const s3Key = `packages/${metadata.packageId}/v${metadata.packageVersion}/package.zip`;
+    const s3Params = {
+      Bucket: bucketName,
+      Key: s3Key
     };
-    resolve(examples["application/json"]);
-  });
+
+    // Fetch the package content from S3
+    console.log("Fetching package content from S3 with key:", s3Key);
+    const s3Object = await s3.getObject(s3Params).promise();
+    const content = s3Object.Body ? s3Object.Body.toString('base64') : null;
+
+    if (!content) {
+      console.error("Failed to retrieve package content from S3 for key:", s3Key);
+      throw new CustomError("Package content not found in S3.", 404);
+    }
+
+    // Prepare response
+    const response = {
+      metadata: {
+        Name: metadata.packageName,
+        Version: metadata.packageVersion,
+        ID: metadata.packageId
+      },
+      data: {
+        Content: content, // Base64 encoded zip content
+        JSProgram: metadata.packageJS,
+        URL: metadata.packageURL // Include URL if it exists
+      }
+    };
+
+    console.log("Returning package data:", JSON.stringify(response));
+    return response;
+
+  } catch (error: any) {
+    console.error("Error occurred in packageRetrieve:", error);
+    throw new CustomError(`Failed to retrieve package: ${error.message}`, 500);
+  }
 }
 
 /**
