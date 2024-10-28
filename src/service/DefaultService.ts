@@ -416,7 +416,7 @@ export function packageIdCostGET(
  * @param xAuthorization AuthenticationToken
  * @returns Promise<PackageRating>
  */
-export function packageRate(id: PackageID, xAuthorization: AuthenticationToken): Promise<PackageRating> {
+export async function packageRate(id: PackageID, xAuthorization: AuthenticationToken): Promise<PackageRating> {
   /* return new Promise(function(resolve) {
     const examples: { [key: string]: PackageRating } = {
       "application/json": {

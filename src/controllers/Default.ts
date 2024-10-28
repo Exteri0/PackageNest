@@ -132,24 +132,35 @@ export const packageIdCostGET = (
     });
 };
 
-export const PackageRate = (
+export const PackageRate = async (
   req: OpenApiRequest,
   res: Response,
   next: NextFunction
-): void => {
+): Promise<void> => {
   const xAuthorization: Default.AuthenticationToken = {
     token: req.headers.authorization
       ? req.headers.authorization.toString()
       : "",
   };
   const id: Default.PackageID = { id: req.params.name };
-  Default.packageRate(id, xAuthorization)
-    .then((response: any) => {
-      utils.writeJson(res, response);
-    })
-    .catch((response: any) => {
-      utils.writeJson(res, response);
-    });
+  try {
+    const xAuthorization: Default.AuthenticationToken = {
+      token: req.headers.authorization?.toString() ?? "",
+    };
+    console.log("xAuthorization token:", xAuthorization.token);
+
+    const response = await Default.packageRate(id, xAuthorization);
+    console.log("Received response from service:", response);
+    res.json(response);
+    console.log("Response sent from controller");
+  } catch (error: any) {
+    console.error("Error in PackageCreate controller:", error);
+    if (error instanceof CustomError) {
+      res.status(error.status).json({ error: error.message });
+    } else {
+      res.status(500).json({ error: error.message || "An error occurred" });
+    }
+  }
 };
 
 export const PackageRetrieve = (
