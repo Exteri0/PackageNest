@@ -9,3 +9,9 @@ export interface OpenApiRequest extends Request {
     };
   };
 }
+
+export interface PackageMetrics {
+  dependencies: number;
+  pinnedDependencies: number;
+  codeReviewFraction: number;
+}
