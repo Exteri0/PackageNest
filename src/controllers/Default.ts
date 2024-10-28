@@ -4,7 +4,7 @@ import { Request, Response, NextFunction, response } from "express";
 import * as utils from "../utils/writer";
 import * as Default from "../service/DefaultService";
 import * as Metrics from "../Metrics/metricExport";
-import { OpenApiRequest } from "../utils/types";
+import { CustomError, OpenApiRequest } from "../utils/types";
 
 // Things with an input like offset might cause trouble
 
@@ -82,8 +82,12 @@ export const PackageCreate = async (
     res.json(response);
     console.log("Response sent from controller");
   } catch (error: any) {
-    console.error("Error in PackageCreate controller:", error);
-    res.status(500).json({ error: error.message || "An error occurred" });
+    if (error instanceof CustomError) {
+      res.status(error.status).json({ error: error.message });
+    } else {
+      console.error("Error in PackageCreate controller:", error);
+      res.status(500).json({ error: error.message || "An error occurred" });
+    }
   }
 };
 
@@ -203,11 +207,7 @@ export const PackagesList = async (
     };
     console.log("xAuthorization token received");
 
-    const response = await Default.packagesList(
-      body,
-      offset,
-      xAuthorization
-    );
+    const response = await Default.packagesList(body, offset, xAuthorization);
     console.log("Received response from service:", response);
 
     // Set the offset for the next page in the response header
@@ -286,7 +286,11 @@ export const testMetricNameGET = (
   res: Response,
   next: NextFunction
 ): void => {
-  const metricName: Metrics.metricInterface = {name: req.openapi?.pathParams?.metric_name? req.openapi.pathParams.metric_name : ""}; 
+  const metricName: Metrics.metricInterface = {
+    name: req.openapi?.pathParams?.metric_name
+      ? req.openapi.pathParams.metric_name
+      : "",
+  };
   const xAuthorization: Default.AuthenticationToken = {
     token: req.headers.authorization
       ? req.headers.authorization.toString()
