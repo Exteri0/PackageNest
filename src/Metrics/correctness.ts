@@ -6,7 +6,7 @@ import "dotenv/config";
 const defaultOwner = "cloudinary";
 const defaultName = "cloudinary_npm";
 
-const githubToken = process.env.MY_GITHUB_TOKEN || "";
+const githubToken = process.env.MY_TOKEN || "";
 if (!githubToken) {
   console.error("GITHUB_TOKEN is not defined");
   process.exit(1);

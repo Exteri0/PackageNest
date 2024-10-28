@@ -43,4 +43,4 @@ jobs:
           SUBNET_ID_1: ${{ secrets.SUBNET_ID_1 }}
           SUBNET_ID_2: ${{ secrets.SUBNET_ID_2 }}
           SERVERLESS_ACCESS_KEY: ${{ secrets.SERVERLESS_ACCESS_KEY }}
-          MY_GITHUB_TOKEN: ${{ secrets.MY_GITHUB_TOKEN }}
+          MY_TOKEN: ${{ secrets.MY_TOKEN }}

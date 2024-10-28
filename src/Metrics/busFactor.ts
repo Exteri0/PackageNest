@@ -27,7 +27,7 @@ function getLatency(startTime: number): number {
 export async function getBusFactorJSON(
   owner: string = "cloudinary",
   name: string = "cloudinary_npm",
-  token: string | undefined = process.env.MY_GITHUB_TOKEN
+  token: string | undefined = process.env.MY_TOKEN
 ): Promise<{ BusFactor: number; BusFactor_Latency: number }> {
   const startTime = performance.now();
   logger.info(`Calculating bus factor for ${owner}/${name}`);

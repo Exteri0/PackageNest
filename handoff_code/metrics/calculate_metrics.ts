@@ -30,7 +30,7 @@ const lgplCompatibleSpdxIds: string[] = [
 ];
 
 // Should be loaded from environment variables
-const githubToken = process.env.MY_GITHUB_TOKEN;
+const githubToken = process.env.MY_TOKEN;
 if (!githubToken) {
   console.log("GITHUB_TOKEN is not defined");
   process.exit(1);
