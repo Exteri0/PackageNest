@@ -1,3 +1,5 @@
+// custom_s3_fs.ts
+
 import {
   S3Client,
   GetObjectCommand,
@@ -12,10 +14,8 @@ import {
   CommonPrefix,
   _Object,
 } from "@aws-sdk/client-s3";
+import { Upload } from "@aws-sdk/lib-storage"; // Import Upload from lib-storage
 import { Readable } from "stream";
-import { promisify } from "util";
-import { pipeline } from "stream";
-const streamPipeline = promisify(pipeline);
 import "dotenv/config";
 
 const s3 = new S3Client({ region: process.env.AWS_REGION });
@@ -68,17 +68,34 @@ class S3FS {
 
   async writeFile(
     filepath: string,
-    data: Buffer | string,
+    data: Buffer | string | Readable,
     options?: any
   ): Promise<void> {
     const key = s3Path(filepath);
     try {
-      const command = new PutObjectCommand({
-        Bucket: bucketName,
-        Key: key,
-        Body: data,
-      });
-      await s3.send(command);
+      if (data instanceof Readable) {
+        // Use Upload class for streams
+        const upload = new Upload({
+          client: s3,
+          params: {
+            Bucket: bucketName,
+            Key: key,
+            Body: data,
+          },
+        });
+        await upload.done();
+      } else {
+        const contentLength =
+          typeof data === "string" ? Buffer.byteLength(data) : data.length;
+
+        const command = new PutObjectCommand({
+          Bucket: bucketName,
+          Key: key,
+          Body: data,
+          ContentLength: contentLength,
+        });
+        await s3.send(command);
+      }
     } catch (error) {
       console.error(`Error writing file ${filepath}:`, error);
       throw error;
@@ -188,13 +205,21 @@ class S3FS {
           })) || [];
 
         if (objects.length > 0) {
-          const deleteCommand = new DeleteObjectsCommand({
-            Bucket: bucketName,
-            Delete: {
-              Objects: objects,
-            },
-          });
-          await s3.send(deleteCommand);
+          // S3 allows up to 1000 objects in a DeleteObjectsCommand
+          // We batch delete operations to handle more than 1000 objects
+          const deletePromises = [];
+          for (let i = 0; i < objects.length; i += 1000) {
+            const chunk = objects.slice(i, i + 1000);
+            const deleteCommand = new DeleteObjectsCommand({
+              Bucket: bucketName,
+              Delete: {
+                Objects: chunk,
+                Quiet: true,
+              },
+            });
+            deletePromises.push(s3.send(deleteCommand));
+          }
+          await Promise.all(deletePromises);
         }
 
         continuationToken = listResponse.IsTruncated
@@ -237,11 +262,32 @@ class S3FS {
         error.name === "NotFound" ||
         error.$metadata?.httpStatusCode === 404
       ) {
-        const err = new Error(
-          `ENOENT: no such file or directory, stat '${filepath}'`
-        );
-        (err as any).code = "ENOENT";
-        throw err;
+        // Check if it's a directory by attempting to list objects with the prefix
+        const dirKey = key.endsWith("/") ? key : key + "/";
+        const listCommand = new ListObjectsV2Command({
+          Bucket: bucketName,
+          Prefix: dirKey,
+          MaxKeys: 1,
+        });
+        const listResponse = (await s3.send(
+          listCommand
+        )) as ListObjectsV2CommandOutput;
+        if (listResponse.KeyCount && listResponse.KeyCount > 0) {
+          // It's a directory
+          return {
+            isFile: () => false,
+            isDirectory: () => true,
+            mtimeMs: Date.now(),
+            ctimeMs: Date.now(),
+            size: 0,
+          };
+        } else {
+          const err = new Error(
+            `ENOENT: no such file or directory, stat '${filepath}'`
+          );
+          (err as any).code = "ENOENT";
+          throw err;
+        }
       } else {
         console.error(`Error stating file ${filepath}:`, error);
         throw error;
