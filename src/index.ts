@@ -24,7 +24,7 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
 //   routes(app);
 // });
 
-console.log("is this work");
+console.log("is this worki");
 /* console.log("Before registering routes");
 console.log("Routes registered"); */
 routes(app);
