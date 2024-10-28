@@ -82,10 +82,10 @@ export const PackageCreate = async (
     res.json(response);
     console.log("Response sent from controller");
   } catch (error: any) {
+    console.error("Error in PackageCreate controller:", error);
     if (error instanceof CustomError) {
       res.status(error.status).json({ error: error.message });
     } else {
-      console.error("Error in PackageCreate controller:", error);
       res.status(500).json({ error: error.message || "An error occurred" });
     }
   }

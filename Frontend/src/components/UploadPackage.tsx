@@ -25,6 +25,8 @@ const UploadPackage: React.FC = () => {
         .post("http://localhost:3000/package", {
           Content: base64String,
           Name: selectedFile.name,
+          JSProgram: "console.log('Hello, World!');",
+          debloat: false,
         })
         .then((response) => {
           message.success("File uploaded successfully!");
