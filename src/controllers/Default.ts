@@ -3,7 +3,7 @@
 import { Request, Response, NextFunction, response } from "express";
 import * as utils from "../utils/writer";
 import * as Default from "../service/DefaultService";
-import {calculateMetrics} from "../Metrics/metricExport";
+import { calculateMetrics } from "../Metrics/metricExport";
 import { CustomError, OpenApiRequest } from "../utils/types";
 
 // Things with an input like offset might cause trouble
@@ -219,8 +219,12 @@ export const PackagesList = async (
     res.json(response.packages);
     console.log("Response sent from controller");
   } catch (error: any) {
-    console.error("Error in PackagesList controller:", error);
-    res.status(500).json({ error: error.message || "An error occurred" });
+    if (error instanceof CustomError) {
+      res.status(error.status).json({ error: error.message });
+    } else {
+      console.error("Error in PackagesList controller:", error);
+      res.status(500).json({ error: error.message || "An error occurred" });
+    }
   }
 };
 

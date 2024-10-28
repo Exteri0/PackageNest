@@ -580,8 +580,9 @@ export async function packagesList(
               regex.test(pkgQuery.Version)
             );
             if (matches.length !== 1) {
-              throw new Error(
-                `Invalid or ambiguous version format: ${pkgQuery.Version}`
+              throw new CustomError(
+                `Invalid or ambiguous version format: ${pkgQuery.Version}`,
+                400
               );
             }
           }
@@ -632,7 +633,9 @@ export async function packagesList(
               queryValues.push(`${major}.${minor}.%`);
               queryIndex++;
             } else {
-              throw new Error(`Invalid version format: ${version}`);
+              throw new CustomError(`Invalid version format: ${version}`,
+                400
+              );
             }
           }
 
@@ -665,8 +668,13 @@ export async function packagesList(
       nextOffset,
     };
   } catch (error) {
-    console.error("Error in packagesList:", error);
-    throw error;
+    if (error instanceof CustomError) {
+      console.error("Error in packagesList:", error.message);
+      throw error;
+    } else {
+      console.error("Unexpected error in packagesList:", error);
+      throw new CustomError("An unexpected error occurred.", 500);
+    }
   }
 }
 /*
