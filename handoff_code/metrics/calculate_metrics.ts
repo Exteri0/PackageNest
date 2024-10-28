@@ -9,6 +9,7 @@ import http from "isomorphic-git/http/node";
 import axios from "axios";
 import * as path from "path";
 import winston from "winston";
+import "dotenv/config";
 
 const lgplCompatibleSpdxIds: string[] = [
   "LGPL-2.1-only",

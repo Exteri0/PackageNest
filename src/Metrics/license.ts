@@ -2,7 +2,7 @@
 
 import { graphql, GraphqlResponseError } from "@octokit/graphql";
 import axios from "axios";
-
+import "dotenv/config";
 const defaultOwner = "cloudinary";
 const defaultName = "cloudinary_npm";
 

@@ -1,6 +1,7 @@
 // correctness_metric.ts
 
 import { graphql, GraphqlResponseError } from "@octokit/graphql";
+import "dotenv/config";
 
 const defaultOwner = "cloudinary";
 const defaultName = "cloudinary_npm";

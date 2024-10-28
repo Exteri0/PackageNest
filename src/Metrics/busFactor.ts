@@ -1,5 +1,6 @@
 import { graphql, GraphqlResponseError } from "@octokit/graphql";
 import logger from "../logger.js";
+import "dotenv/config";
 
 // define interface
 export interface BusFactorInterface {
