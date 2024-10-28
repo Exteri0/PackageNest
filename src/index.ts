@@ -22,10 +22,10 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
 app.listen(port, () => {
   console.log(`Server is running on http://localhost:${port}`);
   routes(app);
-}); 
+});
 
+console.log("is this work");
 /* console.log("Before registering routes");
-console.log("PLEASE WORK sisadasdsdagh");
 routes(app);
 console.log("Routes registered"); */
 
