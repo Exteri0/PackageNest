@@ -29,7 +29,7 @@ const lgplCompatibleSpdxIds: string[] = [
 ];
 
 // Should be loaded from environment variables
-const githubToken = process.env.GITHUB_TOKEN;
+const githubToken = process.env.MY_GITHUB_TOKEN;
 if (!githubToken) {
   console.log("GITHUB_TOKEN is not defined");
   process.exit(1);
@@ -70,7 +70,7 @@ if (loglevel && logfile) {
     level: loglevel == 1 ? "info" : "debug",
     format: winston.format.combine(
       winston.format.timestamp(),
-      winston.format.json(),
+      winston.format.json()
     ),
     transports: [new winston.transports.File({ filename: logfile })],
   });
@@ -84,7 +84,7 @@ function getLatency(startTime: number): number {
 // Given a URL, fetch the owner and repository name. Will handle
 // both github.com and npmjs.com URLs
 export async function fetch_repo_info(
-  url_link: string,
+  url_link: string
 ): Promise<{ owner: string | undefined; name: string | undefined }> {
   const url = url_link;
   logger?.info(`Fetching owner and repository name for: ${url}`);
@@ -97,7 +97,7 @@ export async function fetch_repo_info(
 
 export async function calculate_rampup_metric(
   owner: string | undefined,
-  name: string | undefined,
+  name: string | undefined
 ): Promise<{ RampUp: number; RampUp_Latency: number }> {
   logger?.info(`Calculating ramp-up metric for ${owner}/${name}`);
   const startTime = performance.now();
@@ -180,7 +180,7 @@ async function analyzeRepoStatic(repoDir: string): Promise<number> {
       (file) =>
         file.path.toLowerCase().includes("doc") ||
         file.path.toLowerCase().includes("guide") ||
-        /\.(md|markdown|txt|rst|adoc|wiki)$/i.test(file.path),
+        /\.(md|markdown|txt|rst|adoc|wiki)$/i.test(file.path)
     );
     const docScore = weights.documentation * Math.min(docFiles.length / 5, 1);
 
@@ -208,7 +208,7 @@ async function analyzeRepoStatic(repoDir: string): Promise<number> {
     const structureBonus = (await hasGoodStructure(allFiles)) ? 0.1 : 0;
     const score = docScore + exScore + complexityScore + structureBonus;
     logger?.debug(
-      `Documentation: ${docScore}, Examples: ${exScore}, Complexity: ${complexityScore}, Structure Bonus: ${structureBonus}`,
+      `Documentation: ${docScore}, Examples: ${exScore}, Complexity: ${complexityScore}, Structure Bonus: ${structureBonus}`
     );
     return Math.max(0, Math.min(1, score));
   } catch (error) {
@@ -218,14 +218,14 @@ async function analyzeRepoStatic(repoDir: string): Promise<number> {
 }
 async function analyzeComplexityStatic(allFiles: any[]): Promise<number> {
   const codeFiles = allFiles.filter((entry) =>
-    /\.(ts|js|jsx|tsx|py|java|c|cpp|cs)$/i.test(entry.path),
+    /\.(ts|js|jsx|tsx|py|java|c|cpp|cs)$/i.test(entry.path)
   );
   // a lot of files means high code complexity
   return 1 - Math.min(codeFiles.length / 1000, 1);
 }
 async function getAllFilesStatic(
   repoDir: string,
-  oid: string,
+  oid: string
 ): Promise<Array<{ path: string; oid: string }>> {
   const { tree } = await git.readTree({ fs, dir: repoDir, oid });
   let allFiles: Array<{ path: string; oid: string }> = [];
@@ -237,7 +237,7 @@ async function getAllFilesStatic(
         subFiles.map((file) => ({
           path: `${entry.path}/${file.path}`,
           oid: file.oid,
-        })),
+        }))
       );
     } else {
       allFiles.push({ path: entry.path, oid: entry.oid });
@@ -248,13 +248,13 @@ async function getAllFilesStatic(
 async function hasGoodStructure(allFiles: any[]): Promise<boolean> {
   const importantDirs = ["src", "lib", "test", "docs", "examples"];
   return importantDirs.every((dir) =>
-    allFiles.some((file) => file.path.toLowerCase().startsWith(dir + "/")),
+    allFiles.some((file) => file.path.toLowerCase().startsWith(dir + "/"))
   );
 }
 
 export async function calculate_correctness_metric(
   owner: string | undefined,
-  name: string | undefined,
+  name: string | undefined
 ): Promise<{ Correctness: number; Correctness_Latency: number }> {
   logger?.info(`Calculating correctness metric for ${owner}/${name}`);
   const startTime = performance.now();
@@ -276,7 +276,9 @@ export async function calculate_correctness_metric(
       defaultBranchRef {
         target {
           ... on Commit {
-            history(since: "${new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()}") {
+            history(since: "${new Date(
+              Date.now() - 30 * 24 * 60 * 60 * 1000
+            ).toISOString()}") {
               totalCount
             }
           }
@@ -305,8 +307,8 @@ export async function calculate_correctness_metric(
     const correctnessScore = Number(
       Math.max(
         0,
-        Math.min((issueRatio + prRatio + recentCommitRatio) / 3),
-      ).toFixed(3),
+        Math.min((issueRatio + prRatio + recentCommitRatio) / 3)
+      ).toFixed(3)
     );
     logger?.info(`Correctness score calculated: ${correctnessScore}`);
     return {
@@ -325,7 +327,7 @@ export async function calculate_correctness_metric(
 
 export async function calculate_responsiveness_metric(
   owner: string | undefined,
-  name: string | undefined,
+  name: string | undefined
 ): Promise<{
   ResponsiveMaintainer: number;
   ResponsiveMaintainer_Latency: number;
@@ -372,7 +374,7 @@ export async function calculate_responsiveness_metric(
       response.repository.issues.totalCount === 0
     ) {
       logger?.info(
-        `Responsiveness score is 0: No pull requests or issues found`,
+        `Responsiveness score is 0: No pull requests or issues found`
       );
       return {
         ResponsiveMaintainer: 0,
@@ -417,7 +419,7 @@ export async function calculate_responsiveness_metric(
     // Base case: if all pull requests and issues are open
     if (resolvedPrs === 0 && resolvedIssues === 0) {
       logger?.info(
-        `Responsiveness score is 0: No closed pull requests or issues`,
+        `Responsiveness score is 0: No closed pull requests or issues`
       );
       return {
         ResponsiveMaintainer: 0,
@@ -464,7 +466,7 @@ export async function calculate_responsiveness_metric(
 
 export async function calculate_license_metric(
   owner: string | undefined,
-  name: string | undefined,
+  name: string | undefined
 ): Promise<{ License: number; License_Latency: number }> {
   logger?.info(`Calculating license metric for ${owner}/${name}`);
   const startTime = performance.now();
@@ -535,11 +537,11 @@ export async function calculate_license_metric(
       ) {
         licenseScore = 1;
         logger?.info(
-          `${registryLicenseName} license is compatible with LGPL V2.1`,
+          `${registryLicenseName} license is compatible with LGPL V2.1`
         );
       } else {
         logger?.info(
-          `${registryLicenseName} license is not compatible with LGPL V2.1`,
+          `${registryLicenseName} license is not compatible with LGPL V2.1`
         );
         licenseScore = 0;
       }
@@ -559,7 +561,7 @@ export function calculate_net_score(
   licenseScore: number,
   rampupScore: number,
   correctnessScore: number,
-  responsiveMaintenanceScore: number,
+  responsiveMaintenanceScore: number
 ): { NetScore: number; NetScore_Latency: number } {
   const startTime = performance.now();
   return {
@@ -609,7 +611,7 @@ async function main() {
           const json = JSON.stringify(blankData);
           ndjson_data.push(json);
           logger?.info(
-            `Added blank data for ${url} due to undefined owner or name`,
+            `Added blank data for ${url} due to undefined owner or name`
           );
           continue;
         }
@@ -631,7 +633,7 @@ async function main() {
           License,
           RampUp,
           Correctness,
-          ResponsiveMaintainer,
+          ResponsiveMaintainer
         );
         NetScore = Number(NetScore.toFixed(3));
 

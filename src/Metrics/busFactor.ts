@@ -22,11 +22,11 @@ function getLatency(startTime: number): number {
   return performance.now() - startTime;
 }
 
-// calculates the bus factor 
+// calculates the bus factor
 export async function getBusFactorJSON(
   owner: string = "cloudinary",
   name: string = "cloudinary_npm",
-  token: string | undefined = process.env.GITHUB_TOKEN
+  token: string | undefined = process.env.MY_GITHUB_TOKEN
 ): Promise<{ BusFactor: number; BusFactor_Latency: number }> {
   const startTime = performance.now();
   logger.info(`Calculating bus factor for ${owner}/${name}`);
@@ -72,13 +72,19 @@ export async function getBusFactorJSON(
 
   try {
     // execute the GraphQL query
-    const response = await graphqlWithAuth<BusFactorInterface>(query, variables);
+    const response = await graphqlWithAuth<BusFactorInterface>(
+      query,
+      variables
+    );
     logger.info("GraphQL query executed successfully");
 
-    const collaborators = response.repository.collaborators.edges.map((edge) => ({
-      login: edge.node.login,
-      contributions: edge.node.contributionsCollection.totalCommitContributions,
-    }));
+    const collaborators = response.repository.collaborators.edges.map(
+      (edge) => ({
+        login: edge.node.login,
+        contributions:
+          edge.node.contributionsCollection.totalCommitContributions,
+      })
+    );
 
     // check if no contributors were found
     if (collaborators.length === 0) {
@@ -93,7 +99,10 @@ export async function getBusFactorJSON(
     collaborators.sort((a, b) => b.contributions - a.contributions);
 
     // calculate the total number of commits
-    const totalCommits = collaborators.reduce((sum, contributor) => sum + contributor.contributions, 0);
+    const totalCommits = collaborators.reduce(
+      (sum, contributor) => sum + contributor.contributions,
+      0
+    );
 
     // calculate the number of key contributors that account for at least 50% of total commits
     let cumulativeCommits = 0;
@@ -109,7 +118,7 @@ export async function getBusFactorJSON(
     }
 
     // calculate the Bus Factor score
-    const busFactorPercentage = 1 - (keyContributors / collaborators.length);
+    const busFactorPercentage = 1 - keyContributors / collaborators.length;
     const busFactorScore = Number(busFactorPercentage.toFixed(3));
 
     logger.info(`Bus factor calculated: ${busFactorScore}`);
@@ -121,7 +130,9 @@ export async function getBusFactorJSON(
     if (error instanceof GraphqlResponseError) {
       logger.error("GraphQL Response Error:", { message: error.message });
     } else if (error instanceof Error) {
-      logger.error("Error while calculating bus factor:", { message: error.message });
+      logger.error("Error while calculating bus factor:", {
+        message: error.message,
+      });
     } else {
       logger.error("Unknown error occurred");
     }
