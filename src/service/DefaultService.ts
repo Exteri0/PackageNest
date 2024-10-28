@@ -202,58 +202,117 @@ export function packageByRegExGet(body: PackageQuery, xAuthorization: Authentica
  * @returns Promise<Package>
  */
 export async function packageCreate(
-  body: Package,
+  body: {
+    Content: string;
+    JSProgram: string;
+    url: string;
+    debloat: boolean;
+    Name: string;
+  },
   xAuthorization: AuthenticationToken
 ) {
   console.log("Entered packageCreate service function");
   console.log("Received body:", JSON.stringify(body));
   console.log("Received xAuthorization:", xAuthorization);
 
-  if (!body || !body.metadata || !body.data) {
-    console.error("Invalid request body");
+  // Check if required fields are present in body
+  if (!body || !body.Name || (!body.Content && !body.JSProgram)) {
+    console.error("Invalid request body: 'Name', 'Content', and 'JSProgram' are required.");
     throw new Error(
-      "Invalid request body. 'metadata' and 'data' are required."
+      "Invalid request body. 'Name', 'Content', and 'JSProgram' are required."
     );
   }
 
   if (!bucketName) {
-    console.error(
-      "S3_BUCKET_NAME is not defined in the environment variables."
-    );
-    throw new Error(
-      "S3_BUCKET_NAME is not defined in the environment variables."
-    );
+    console.error("S3_BUCKET_NAME is not defined in the environment variables.");
+    throw new Error("S3_BUCKET_NAME is not defined in the environment variables.");
   }
 
-  const packageName = sanitizeInput(body.metadata.Name);
-  const packageVersion = sanitizeInput(body.metadata.Version);
+  const packageName = sanitizeInput(body.Name);
+  const packageVersion = '1.0.0'; // Assuming a default version, change as necessary
+  const packageId = packageName.toLowerCase().replace(/[^a-z0-9\-]/g, ''); // Generate package_id based on Name
 
-  const s3Key = `packages/${packageName}/v${packageVersion}/package.json`;
+  // Set up the S3 key for storing the package data
+  const s3Key = `packages/${packageId}/v${packageVersion}/package.json`;
   const s3Params = {
     Bucket: bucketName,
     Key: s3Key,
-    Body: JSON.stringify(body),
+    Body: JSON.stringify(body.Content),
     ContentType: "application/json",
   };
 
   try {
-    console.log("Uploading package to S3 with key:", s3Key);
-    const s3Data = await s3.putObject(s3Params).promise();
-    console.log(`Package uploaded successfully: ${s3Data.ETag}`);
+    // Upload the package to S3
+    if (body.Content) {
+      console.log("Uploading package to S3 with key:", s3Key);
+      const s3Data = await s3.putObject(s3Params).promise();
+      console.log(`Package uploaded successfully: ${s3Data.ETag}`);
+    }
 
-    console.log("Inserting package into database");
-    const packageId = await packageQueries.insertPackage(packageName, packageVersion); 
+    // Insert package metadata into the packages table
+    const query = `
+      INSERT INTO public."packages" (name, version, package_id, readme)
+      VALUES ($1, $2, $3, $4)
+      ON CONFLICT (name, version) DO NOTHING
+      RETURNING id
+    `;
+    const values = [
+      packageName,
+      packageVersion,
+      packageId,
+      body.Content ? "README for " + packageName : null // Placeholder readme, adjust as necessary
+    ];
 
-    console.log("Package inserted successfully with ID:", packageId);
+    console.log("Inserting package into the packages table");
+    const res = await getDbPool().query(query, values);
+    const packageIdFromDb = res.rows[0]?.id;
 
-    const updatedBody = {
-      ...body,
+    if (!packageIdFromDb) {
+      console.error("Package already exists");
+      throw new Error("Package exists already.");
+    }
+
+    console.log("Package inserted successfully with ID:", packageIdFromDb);
+
+    // Insert js_program into the package_data table
+    const packageDataQuery = `
+      INSERT INTO public."package_data" (package_id, url, debloat, js_program)
+      VALUES ($1, $2, $3, $4)
+      RETURNING id
+    `;
+    const packageDataValues = [
+      packageIdFromDb,
+      body.url || null, // URL can be null
+      body.debloat || false,
+      body.JSProgram,
+    ];
+
+    console.log("Inserting package data into the package_data table");
+    const packageDataRes = await getDbPool().query(packageDataQuery, packageDataValues);
+    const packageDataId = packageDataRes.rows[0]?.id;
+
+    if (!packageDataId) {
+      console.error("Failed to insert JS Program into package_data");
+      throw new Error("Failed to insert JS Program into package_data.");
+    }
+
+    console.log("JS Program inserted successfully with ID:", packageDataId);
+
+    // Prepare response
+    const response = {
       metadata: {
-        ...body.metadata,
+        Name: packageName,
+        Version: packageVersion,
+        ID: packageIdFromDb, // Use the database ID
+      },
+      data: {
+        Content: body.Content,
+        JSProgram: body.JSProgram,
       },
     };
-    console.log("Returning updated body:", JSON.stringify(updatedBody));
-    return updatedBody;
+
+    console.log("Returning updated body:", JSON.stringify(response));
+    return response;
   } catch (error: any) {
     console.error("Error occurred in packageCreate:", error);
     throw new Error(
