@@ -54,10 +54,10 @@ DROP TABLE IF EXISTS users CASCADE;
 -- Recreate the schema
 -- Users table
 CREATE TABLE users (
-    id SERIAL PRIMARY KEY,
+    id SERIAL PRIMARY KEY NOT NULL,
     name VARCHAR(255) NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
-    is_admin BOOLEAN NOT NULL DEFAULT FALSE
+    ROLE VARCHAR(10) NOT NULL CHECK (ROLE IN ('ENGINEER', 'ADMIN', 'DEVELOPER'))
 );
 
 -- Authentication tokens table
@@ -71,42 +71,37 @@ CREATE TABLE authentication_tokens (
 
 -- Packages table
 CREATE TABLE packages (
-    id SERIAL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     version VARCHAR(50) NOT NULL,
-    package_id VARCHAR(255) NOT NULL UNIQUE,
+    package_id VARCHAR(255) PRIMARY KEY NOT NULL UNIQUE,
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    readme TEXT,
-    search_vector tsvector
+    content_type BOOLEAN NOT NULL DEFAULT FALSE
 );
 
 ALTER TABLE packages ADD CONSTRAINT unique_name_version UNIQUE (name, version);
 
 -- Package metadata table
 CREATE TABLE package_metadata (
-    id SERIAL PRIMARY KEY,
-    package_id INTEGER NOT NULL REFERENCES packages(id) ON DELETE CASCADE,
+    package_id VARCHAR(255) PRIMARY KEY NOT NULL,
     name VARCHAR(255) NOT NULL,
     version VARCHAR(50) NOT NULL,
-    package_id_str VARCHAR(255) NOT NULL,
-    UNIQUE(package_id),
-    CHECK (package_id_str ~ '^[a-zA-Z0-9\\-]+$')
+    UNIQUE(package_id)
 );
 
 -- Package data table
 CREATE TABLE package_data (
-    id SERIAL PRIMARY KEY,
-    package_id INTEGER NOT NULL REFERENCES packages(id) ON DELETE CASCADE,
+    package_id VARCHAR(255) NOT NULL PRIMARY KEY REFERENCES packages(package_id) ON DELETE CASCADE,
+    content_type BOOLEAN NOT NULL DEFAULT FALSE,
     url TEXT,
-    debloat BOOLEAN,
-    js_program TEXT
+    debloat BOOLEAN NOT NULL DEFAULT FALSE,
+    js_program TEXT,
+    CHECK(URL IS NOT NULL AND content_type = FALSE)
 );
 
 -- Package ratings table
 CREATE TABLE package_ratings (
-    id SERIAL PRIMARY KEY,
-    package_id INTEGER NOT NULL REFERENCES packages(id) ON DELETE CASCADE,
+    package_id VARCHAR(255) PRIMARY KEY NOT NULL REFERENCES packages(package_id) ON DELETE CASCADE,
     bus_factor DOUBLE PRECISION DEFAULT -1,
     bus_factor_latency DOUBLE PRECISION,
     correctness DOUBLE PRECISION DEFAULT -1,
@@ -122,23 +117,20 @@ CREATE TABLE package_ratings (
     pull_request DOUBLE PRECISION DEFAULT -1,
     pull_request_latency DOUBLE PRECISION,
     net_score DOUBLE PRECISION DEFAULT -1,
-    net_score_latency DOUBLE PRECISION,
-    computed_at TIMESTAMP NOT NULL DEFAULT NOW()
+    net_score_latency DOUBLE PRECISION
 );
 
 -- Package history table
 CREATE TABLE package_history (
-    id SERIAL PRIMARY KEY,
-    package_id INTEGER NOT NULL REFERENCES packages(id) ON DELETE CASCADE,
-    user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    package_id VARCHAR(255) PRIMARY KEY NOT NULL,
+    user_id INTEGER,
     action VARCHAR(10) NOT NULL CHECK (action IN ('CREATE', 'UPDATE', 'DOWNLOAD', 'RATE')),
     action_date TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
 -- Package costs table
 CREATE TABLE package_costs (
-    id SERIAL PRIMARY KEY,
-    package_id INTEGER NOT NULL REFERENCES packages(id) ON DELETE CASCADE,
+    package_id VARCHAR(255) PRIMARY KEY NOT NULL REFERENCES packages(package_id) ON DELETE CASCADE,
     standalone_cost DOUBLE PRECISION,
     total_cost DOUBLE PRECISION,
     computed_at TIMESTAMP NOT NULL DEFAULT NOW()
@@ -146,8 +138,8 @@ CREATE TABLE package_costs (
 
 -- Package dependencies table
 CREATE TABLE package_dependencies (
-    package_id INTEGER NOT NULL REFERENCES packages(id) ON DELETE CASCADE,
-    dependency_package_id INTEGER NOT NULL REFERENCES packages(id) ON DELETE CASCADE,
+    package_id VARCHAR(255) NOT NULL REFERENCES packages(package_id) ON DELETE CASCADE,
+    dependency_package_id VARCHAR(255) NOT NULL REFERENCES packages(package_id) ON DELETE CASCADE,
     PRIMARY KEY (package_id, dependency_package_id)
 );
 

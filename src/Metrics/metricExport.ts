@@ -15,15 +15,13 @@ export function calculateNetScore(
   rampUpScore: number,
   correctnessScore: number,
   responsiveMaintainerScore: number
-): { NetScore: number; NetScore_Latency: number } {
-  const startTime = performance.now();
+): { NetScore: number } {
   return {
     NetScore:
       0.35 * licenseScore +
       0.2 * rampUpScore +
       0.25 * correctnessScore +
       0.2 * responsiveMaintainerScore,
-    NetScore_Latency: getLatency(startTime),
   };
 }
 
@@ -32,6 +30,7 @@ export async function calculateMetrics(input: string) {
     console.log("Starting metric calculation");
     const { owner, name } = await fetchRepoInfo(input);
     console.log(`Owner: ${owner}, Name: ${name}`);
+    const startTime = performance.now();
 
     // Calculate metrics
     const [
@@ -46,12 +45,13 @@ export async function calculateMetrics(input: string) {
       calculateRampUpMetric(owner, name),
     ]);
 
-    let { NetScore, NetScore_Latency } = calculateNetScore(
+    let { NetScore } = calculateNetScore(
       License,
       RampUp,
       Correctness,
       ResponsiveMaintainer
     );
+    const NetScore_Latency = getLatency(startTime);
     NetScore = Number(NetScore.toFixed(3));
 
     const data = {

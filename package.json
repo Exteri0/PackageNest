@@ -10,7 +10,8 @@
     "test": "echo \"no test specified but we'll accept it just this time\"",
     "deploy": "sls deploy",
     "dev": "sls dev",
-    "lint": "eslint \"src/**/*.{js,mjs,cjs,ts,jsx,tsx}\""
+    "lint": "eslint \"src/**/*.{js,mjs,cjs,ts,jsx,tsx}\"",
+    "devlocal": "tsx watch src/index.ts" 
   },
   "keywords": [
     "swagger"
@@ -50,6 +51,7 @@
     "eslint": "^9.13.0",
     "eslint-plugin-react": "^7.37.2",
     "globals": "^15.11.0",
+    "nodemon": "^3.1.7",
     "tsx": "^4.19.1",
     "typescript": "^5.6.3",
     "typescript-eslint": "^8.11.0"
