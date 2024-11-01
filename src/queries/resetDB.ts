@@ -153,20 +153,6 @@ CREATE INDEX idx_package_data_package_id ON package_data(package_id);
 CREATE INDEX idx_package_ratings_package_id ON package_ratings(package_id);
 CREATE INDEX idx_package_costs_package_id ON package_costs(package_id);
 
--- Full-text search setup
-CREATE OR REPLACE FUNCTION update_search_vector()
-RETURNS TRIGGER AS $$
-BEGIN
-  NEW.search_vector :=
-    to_tsvector('english', coalesce(NEW.name, '') || ' ' || coalesce(NEW.readme, ''));
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER trg_update_search_vector
-BEFORE INSERT OR UPDATE ON packages
-FOR EACH ROW EXECUTE FUNCTION update_search_vector();
-
 -- Commit transaction
 COMMIT;
 `;
