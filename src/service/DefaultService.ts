@@ -38,6 +38,10 @@ export interface PackageName {
   name: string;
 }
 
+export interface PackageRegEx {
+  RegEx: string;
+}
+
 export interface PackageID {
   id: string;
 }
@@ -179,28 +183,52 @@ export function packageByNameGet(
  * @param xAuthorization AuthenticationToken
  * @returns Promise<Array<any>>
  */
-export function packageByRegExGet(
-  body: PackageQuery,
+export async function packageByRegExGet(
+  body: PackageRegEx,
   xAuthorization: AuthenticationToken
 ): Promise<Array<any>> {
-  return new Promise(function (resolve) {
-    const examples: { [key: string]: Array<any> } = {
-      "application/json": [
-        {
-          Version: "1.2.3",
-          ID: "123567192081501",
-          Name: "Name",
-        },
-        {
-          Version: "1.2.3",
-          ID: "123567192081501",
-          Name: "Name",
-        },
-      ],
-    };
-    resolve(examples["application/json"]);
-  });
+  console.log("Entered packageByRegExGet function");
+  console.log("Received body:", JSON.stringify(body));
+  console.log("Received xAuthorization:", xAuthorization);
+
+  if (!body || !body.RegEx) {
+    console.error("Invalid request body: 'RegEx' is required.");
+    throw new CustomError("Invalid request body. 'RegEx' is required.", 400);
+  }
+
+  try {
+    // Perform a query to retrieve packages whose names match the regular expression
+    const regexQuery = `
+      SELECT name AS Name, version AS Version, package_id AS ID
+      FROM public.packages
+      WHERE name ~ $1
+    `;
+    const regexValues = [body.RegEx];
+
+    //  const packageData = await getDbPool().query(insertPackageQuery, [packageName, packageVersion, packageId, false]);
+
+    const result = await getDbPool().query(regexQuery, regexValues);
+
+    if (result.rows.length === 0) {
+      console.log("No packages matched the provided regular expression.");
+      return [];
+    }
+
+    // Prepare the result list in the specified format
+    const response = result.rows.map((row) => ({
+      Name: row.name,
+      Version: row.version,
+      ID: row.package_id,
+    }));
+
+    console.log("Returning matched packages:", JSON.stringify(response));
+    return response;
+  } catch (error: any) {
+    console.error("Error occurred in packageByRegExGet:", error);
+    throw new CustomError(`Failed to retrieve packages: ${error.message}`, 500);
+  }
 }
+
 
 /**
  * (BASELINE)
@@ -293,6 +321,7 @@ export async function packageCreate(
     throw new CustomError(`Failed to upload package or insert into database`, 500);
   }
 }
+
 
 function sanitizeInput(input: string): string {
   return input.replace(/[^a-zA-Z0-9-_\.]/g, "");
