@@ -239,6 +239,7 @@ export async function packageCreate(
   const packageId = packageName.toLowerCase().replace(/[^a-z0-9\-]/g, "");
 
   const s3Key = `packages/${packageId}/v${packageVersion}/package.zip`;
+
   const s3Params = {
     Bucket: bucketName,
     Key: s3Key,
@@ -437,9 +438,9 @@ export async function packageRate(id: PackageID, xAuthorization: AuthenticationT
  */
 export async function packageRetrieve(
   xAuthorization: AuthenticationToken,
-  id: PackageID
+  id: string
 ) {
-  console.log("Entered packageRetrieve function with ID:", id.id);
+  console.log("Entered packageRetrieve function with ID:", id);
   console.log("Received xAuthorization:", xAuthorization);
 
   if (!bucketName) {
@@ -448,57 +449,59 @@ export async function packageRetrieve(
   }
 
   try {
-    // Retrieve package metadata from the packages table using the provided ID
+    // Retrieve package metadata from the packages and package_data tables using the provided ID
     const metadataQuery = `
-      SELECT p.name as packageName, p.version as packageVersion, p.package_id as packageId, pd.url as packageURL, pd.js_program as packageJS
-      FROM public."packages" AS p
-      JOIN public."package_data" AS pd ON p.id = pd.package_id
-      WHERE p.id = $1
+      SELECT p.name as packageName, p.version as packageVersion, p.package_id as packageId,
+             pd.url as packageURL, pd.js_program as packageJS, p.content_type
+      FROM public.packages AS p
+      JOIN public.package_data AS pd ON p.package_id = pd.package_id
+      WHERE p.package_id = $1
     `;
-    const metadataValues = [id.id];
+    const metadataValues = [id];
 
     const metadataResult = await getDbPool().query(metadataQuery, metadataValues);
     const metadata = metadataResult.rows[0];
 
     if (!metadata) {
-      console.error("Package not found with ID:", id.id);
+      console.error("Package not found with ID:", id);
       throw new CustomError("Package not found.", 404);
     }
 
+    console.log("Metadata of the query: ",metadata);
+
     // Construct the S3 key to retrieve the zip file based on package_id
-    const s3Key = `packages/${metadata.packageId}/v${metadata.packageVersion}/package.zip`;
+    //const s3Key = `packages/${packageId}/v${packageVersion}/package.zip`;
+    const s3Key = `packages/${metadata.packageid}/v${metadata.packageversion}/package.zip`;
     const s3Params = {
       Bucket: bucketName,
-      Key: s3Key
+      Key: s3Key,
     };
 
     // Fetch the package content from S3
     console.log("Fetching package content from S3 with key:", s3Key);
     const s3Object = await s3.getObject(s3Params).promise();
-    const content = s3Object.Body ? s3Object.Body.toString('base64') : null;
+    const content = s3Object.Body ? s3Object.Body.toString("base64") : null;
 
     if (!content) {
       console.error("Failed to retrieve package content from S3 for key:", s3Key);
       throw new CustomError("Package content not found in S3.", 404);
     }
 
-    // Prepare response
+    // Prepare response in the desired format
     const response = {
       metadata: {
-        Name: metadata.packageName,
-        Version: metadata.packageVersion,
-        ID: metadata.packageId
+        Name: metadata.packagename,
+        Version: metadata.packageversion,
+        ID: metadata.packageid,
       },
       data: {
         Content: content, // Base64 encoded zip content
-        JSProgram: metadata.packageJS,
-        URL: metadata.packageURL // Include URL if it exists
-      }
+        JSProgram: metadata.packagejs,
+      },
     };
 
     console.log("Returning package data:", JSON.stringify(response));
     return response;
-
   } catch (error: any) {
     console.error("Error occurred in packageRetrieve:", error);
     throw new CustomError(`Failed to retrieve package: ${error.message}`, 500);

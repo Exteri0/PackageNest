@@ -173,7 +173,7 @@ export const PackageRetrieve = (
       ? req.headers.authorization.toString()
       : "",
   };
-  const id: Default.PackageID = { id: req.params.name };
+  const id = req.params.id;
   Default.packageRetrieve(xAuthorization, id)
     .then((response: any) => {
       utils.writeJson(res, response);
