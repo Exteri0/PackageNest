@@ -262,7 +262,7 @@ export async function packageCreate(
     throw new CustomError("S3_BUCKET_NAME is not defined in the environment variables.", 500);
   }
 
-  if (body.Content){
+  if (body.Content && !body.URL){
     console.log("Entered packageCreate service function with Content");
     console.log("Received body:", JSON.stringify(body));
     
@@ -288,12 +288,14 @@ export async function packageCreate(
     }
 
   }
-  else if (body.URL){
+  else if (body.URL && !body.Content){
 
     console.log("Entered packageCreate service function with URL");
     console.log("Received body:", JSON.stringify(body));
 
-    const repoMatch = body.URL.match(/github\.com\/([^/]+)\/([^/]+)(?:\/blob\/([^/]+)\/(.+))?/);
+    // RATE
+
+    const repoMatch = (body.URL).match(/github\.com\/([^/]+)\/([^/]+)(?:\/blob\/([^/]+)\/(.+))?/);
     if (!repoMatch) throw new CustomError("Invalid GitHub URL format", 400);
 
     const owner = repoMatch[1];
@@ -327,8 +329,8 @@ export async function packageCreate(
     
   }
   else {
-    console.error("Invalid request body: 'Name', and 'Content' or 'URL' are required.");
-    throw new CustomError("Invalid request body. 'Name', and 'Content' or 'URL' are required.", 400);
+    console.error("Invalid request body: 'Name' and 'Content' or 'URL' are required.");
+    throw new CustomError("There is missing field(s) in the PackageData or it is formed improperly (e.g. Content and URL ar both set)", 400);
   }
 
   try {
@@ -338,7 +340,7 @@ export async function packageCreate(
       ON CONFLICT (name, version) DO NOTHING
       RETURNING package_id;
     `;
-    const packageData = await getDbPool().query(insertPackageQuery, [packageName, packageVersion, packageId, false]);
+    await getDbPool().query(insertPackageQuery, [packageName, packageVersion, packageId, body.Content ? true : false]);
 
     const insertMetadataQuery = `
       INSERT INTO public.package_metadata (package_id, name, version)
@@ -350,7 +352,7 @@ export async function packageCreate(
       INSERT INTO public.package_data (package_id, content_type, url, debloat, js_program)
       VALUES ($1, $2, $3, $4, $5);
     `;
-    await getDbPool().query(insertDataQuery, [packageId, false, body.URL || "null", body.debloat || false, body.JSProgram]);
+    await getDbPool().query(insertDataQuery, [packageId, body.Content ? true : false , body.URL || "null", body.debloat || false, body.JSProgram]);
 
     console.log("Package and metadata inserted successfully.");
 
