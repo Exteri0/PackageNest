@@ -76,7 +76,7 @@ export const PackageCreate = async (
     };
     console.log("xAuthorization token:", xAuthorization.token);
 
-    const response = await Default.packageCreate(body, xAuthorization);
+    const response = await Default.packageCreate(body.body, body.metadata, xAuthorization);
     console.log("Received response from service:", response);
 
     res.json(response);
