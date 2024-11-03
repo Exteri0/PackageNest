@@ -243,47 +243,47 @@ export async function packageByRegExGet(
  * @returns Promise<Package>
  */
 export async function packageCreate(
-  body: {
-    Content?: string;
-    JSProgram?: string;
-    URL?: string;
-    debloat?: boolean;
-    Name?: string;
-  },
-
+  Content?: string,
+  JSProgram?: string,
+  URL?: string,
+  debloat?: boolean,
+  Name?: string,
   metadata?: {
     Version?: string;
     ID?: string;
     Name?: string;
   },
-
-  xAuthorization?: AuthenticationToken
-) {
+  xAuthorization?: AuthenticationToken) {
+  
   let packageName: string | undefined = metadata?.Name?.trim();
   let packageVersion: string | undefined = metadata?.Version?.trim();
   let packageId: string | undefined = metadata?.ID?.trim();
   let contentBuffer: string | undefined = undefined;
   let returnString: string | undefined = undefined;
+  let repoOwner: string | undefined = undefined;
+  let repoName: string | undefined = undefined;
+  let debloatVal: boolean = debloat ?? false;
+  console.log("Received xAuthorization:", xAuthorization);
 
   if (!packageVersion) {
     console.log("Version is not provided, setting to default 1.0.0");
     packageVersion = "1.0.0";
   }
 
-  if ((!body.URL && !body.Content) || (body.URL && body.Content)) {
+  if ((!URL && !Content) || (URL && Content)) {
     console.error("Invalid request body: 'Content' or 'URL' (exclusively) is required.");
     throw new CustomError("Invalid request body. 'Content' or 'URL' (exclusively) is required.", 400);
   }
   else {
-    if (!packageName && !body.Name) {
+    if (!packageName && !Name) {
       console.log("Name is not in neither metadata or body, getting it from the URL or package json.");
-      if (body.URL) {
-        const repoMatch = body.URL.match(/github\.com\/([^/]+)\/([^/]+)(?:\/blob\/([^/]+)\/(.+))?/);
+      if (URL) {
+        const repoMatch = URL.match(/github\.com\/([^/]+)\/([^/]+)(?:\/blob\/([^/]+)\/(.+))?/);
         if (!repoMatch) throw new CustomError("Invalid GitHub URL format", 400);
-        let repoName: string = repoMatch[2];
-        let ownerName: string = repoMatch[1];
+        repoOwner = repoMatch[1];
+        repoName = repoMatch[2];
         try {
-          const responseInfo = await getPackageInfoRepo(ownerName, repoName);
+          const responseInfo = await getPackageInfoRepo(repoOwner, repoName);
           packageName = responseInfo?.name;
           packageVersion = responseInfo?.version;
         }
@@ -292,9 +292,9 @@ export async function packageCreate(
           throw new CustomError(`Failed to retrieve package info from package json using URL`, 500);
         }
       }
-      else if(body.Content){
-        try { 
-          const responseInfo = await getPackageInfoZipFile(body.Content);
+      else if (Content) {
+        try {
+          const responseInfo = await getPackageInfoZipFile(Content);
           packageName = responseInfo.name;
           packageVersion = responseInfo.version;
         }
@@ -305,9 +305,9 @@ export async function packageCreate(
       }
     }
     
-    else if (body.Name) {
+    else if (Name) {
       console.log("name is provided in body, using that instead of metadata, or package json.");
-      packageName = body.Name.trim();
+      packageName = Name.trim();
     }
 
     const NAMESPACE = "6ba7b810-9dad-11d1-80b4-00c04fd430c8";
@@ -317,7 +317,6 @@ export async function packageCreate(
       packageId = uuidv5(`${packageName}-${packageVersion}`, NAMESPACE);
     }
 
-    console.log("Received xAuthorization:", xAuthorization);
 
     if (!bucketName) {
       console.error(
@@ -334,17 +333,17 @@ export async function packageCreate(
       throw new CustomError("Package already exists.", 409);
     }
 
-    if (body.Content && !body.URL) {
-      returnString = body.Content;
+    if (Content && !URL) {
+      returnString = Content;
       console.log("Entered packageCreate service function with Content");
-      console.log("Received body:", JSON.stringify(body));
+      console.log("Received body:", JSON.stringify({ Content: `${Content}`, URL: `${URL}`, debloat: `${debloatVal}`, JSProgram: `${JSProgram ?? null}` }));
 
       const s3Key = `packages/${packageId}/v${packageVersion}/package.zip`;
 
       const s3Params = {
         Bucket: bucketName,
         Key: s3Key,
-        Body: Buffer.from(body.Content, "base64"),
+        Body: Buffer.from(Content, "base64"),
         ContentType: "application/zip",
       };
       try {
@@ -354,20 +353,13 @@ export async function packageCreate(
         console.error("Error occurred in packageCreate:", error);
         throw new CustomError(`Failed to upload content`, 500);
       }
-    } else if (body.URL && !body.Content) {
+    } else if (URL && !Content) {
       console.log("Entered packageCreate service function with URL");
-      console.log("Received body:", JSON.stringify(body));
+      console.log("Received body:", JSON.stringify({ URL: `${URL}`, debloat: `${debloatVal}`, JSProgram: `${JSProgram ?? null}` }));
 
       // RATE
 
-      const repoMatch = body.URL.match(
-        /github\.com\/([^/]+)\/([^/]+)(?:\/blob\/([^/]+)\/(.+))?/
-      );
-      if (!repoMatch) throw new CustomError("Invalid GitHub URL format", 400);
-
-      const owner = repoMatch[1];
-      const repo = repoMatch[2];
-      const apiUrl = `https://api.github.com/repos/${owner}/${repo}/zipball`;
+      const apiUrl = `https://api.github.com/repos/${repoOwner}/${repoName}/zipball`;
 
       try {
         console.log(`Downloading file from URL: ${apiUrl}`);
@@ -385,50 +377,50 @@ export async function packageCreate(
         console.log("Uploading package from URL to S3 with key:", s3Key);
         await s3.putObject(s3Params).promise();
       } catch (error) {
-          console.error("Error downloading or processing file from URL:", error);
-          throw new CustomError(
-            `Failed to download or upload package from URL`,
-            500
-          );
+        console.error("Error downloading or processing file from URL:", error);
+        throw new CustomError(
+          `Failed to download or upload package from URL`,
+          500
+        );
       }
     }
-  }
 
-  try {
+    try {
     
-    if (!contentBuffer)
-      await packageQueries.insertPackageQuery(packageName, packageVersion?? "1.0.0", packageId, true);
-    else
-      await packageQueries.insertPackageQuery(packageName, packageVersion ?? "1.0.0", packageId, false);
+      if (!contentBuffer) //no url download, content type is true
+        await packageQueries.insertPackageQuery(packageName, packageVersion ?? "1.0.0", packageId, true);
+      else
+        await packageQueries.insertPackageQuery(packageName, packageVersion ?? "1.0.0", packageId, false);
     
-    await packageQueries.insertIntoMetadataQuery(packageName, packageVersion ?? "1.0.0", packageId);
+      await packageQueries.insertIntoMetadataQuery(packageName, packageVersion ?? "1.0.0", packageId);
     
-    if (!contentBuffer)
-      await packageQueries.insertIntoPackageDataQuery(packageId, true, body.URL, body.debloat ?? false, body.JSProgram);
-    else
-      await packageQueries.insertIntoPackageDataQuery(packageId, false, body.URL, body.debloat ?? false, body.JSProgram);
+      if (!contentBuffer)
+        await packageQueries.insertIntoPackageDataQuery(packageId, true, URL, debloatVal, JSProgram);
+      else
+        await packageQueries.insertIntoPackageDataQuery(packageId, false, URL, debloatVal, JSProgram);
 
-    console.log("Package and metadata, and data registered successfully.");
+      console.log("Package and metadata, and data registered successfully.");
 
-    const response = {
-      metadata: {
-        Name: packageName,
-        Version: packageVersion,
-        ID: packageId,
-      },
-      data: {
-        Content: returnString,
-        JSProgram: body.JSProgram,
-      },
-    };
+      const response = {
+        metadata: {
+          Name: packageName,
+          Version: packageVersion,
+          ID: packageId,
+        },
+        data: {
+          Content: returnString,
+          JSProgram: JSProgram,
+        },
+      };
 
-    return response;
-  } catch (error) {
-    console.error("Error occurred in packageCreate:", error);
-    throw new CustomError(
-      `Failed to upload package or insert into database`,
-      500
-    );
+      return response;
+    } catch (error) {
+      console.error("Error occurred in packageCreate:", error);
+      throw new CustomError(
+        `Failed to upload package or insert into database`,
+        500
+      );
+    }
   }
 }
 

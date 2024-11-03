@@ -38,25 +38,24 @@ export async function getPackageInfoZipFile(base64String: string) {
     return { name, version };
 }
 
-const GITHUB_TOKEN = process.env.MY_TOKEN || "";
 
-const octokit = new Octokit({
-  auth: GITHUB_TOKEN,
-});
 
-export async function getPackageInfoRepo(owner: string, repo: string, branch = "main") {
+export async function getPackageInfoRepo(owner: string, repo: string) {
+    const GITHUB_TOKEN = process.env.MY_TOKEN || "";
+    const octokit = new Octokit({
+      auth: GITHUB_TOKEN,
+    });
     try {
         // Fetch the content of package.json file
         const response = await octokit.repos.getContent({
-        owner,
-        repo,
-        path: "package.json",
-        ref: branch,
+            owner,
+            repo,
+            path: "package.json",
         });
 
         // Type guard to ensure response.data is a file (not an array or directory)
         if (Array.isArray(response.data)) {
-        throw new Error("package.json not found or is a directory.");
+            throw new Error("package.json not found or is a directory.");
         }
 
         // Check if content exists
