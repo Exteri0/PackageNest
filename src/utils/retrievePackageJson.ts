@@ -41,43 +41,48 @@ export async function getPackageInfoZipFile(base64String: string) {
 
 
 export async function getPackageInfoRepo(owner: string, repo: string) {
-    const GITHUB_TOKEN = process.env.MY_TOKEN || "";
-    const octokit = new Octokit({
-      auth: GITHUB_TOKEN,
+  const GITHUB_TOKEN = process.env.MY_TOKEN || "";
+  const octokit = new Octokit({
+    auth: GITHUB_TOKEN,
+  });
+
+  try {
+    const response = await octokit.repos.getContent({
+      owner,
+      repo,
+      path: "package.json",
     });
-    try {
-        // Fetch the content of package.json file
-        const response = await octokit.repos.getContent({
-            owner,
-            repo,
-            path: "package.json",
-        });
 
-        // Type guard to ensure response.data is a file (not an array or directory)
-        if (Array.isArray(response.data)) {
-            throw new Error("package.json not found or is a directory.");
-        }
-
-        // Check if content exists
-        if ("content" in response.data) {
-        // The content is base64 encoded, so decode it
-        const packageJsonContent = Buffer.from(
-            response.data.content,
-            "base64"
-        ).toString();
-        const packageData = JSON.parse(packageJsonContent);
-
-        const { name, version } = packageData;
-
-        console.log(`Package Name: ${name}`);
-        console.log(`Package Version: ${version}`);
-
-        return { name, version };
-        } else {
-        throw new Error("Content is not available in package.json.");
-        }
-    } catch (error: any) {
-            console.error("Error fetching package.json:", error.message);
-            throw error;
+    if (Array.isArray(response.data)) {
+      throw new Error("package.json not found or is a directory.");
     }
+
+    if ("content" in response.data) {
+      const packageJsonContent = Buffer.from(
+        response.data.content,
+        "base64"
+      ).toString();
+      const packageData = JSON.parse(packageJsonContent);
+
+      const { name, version } = packageData;
+      console.log(`Package Name: ${name}`);
+      console.log(`Package Version: ${version}`);
+
+      return { name, version };
+    } else {
+      throw new Error("Content is not available in package.json.");
+    }
+  } catch (error: any) {
+    // Log more details about the error
+    console.error("Error fetching package.json:", error.message);
+
+    if (error.response) {
+      console.error("GitHub API response error:", error.response.status);
+      console.error("GitHub API response data:", error.response.data);
+    }
+
+    throw new Error(
+      `Failed to retrieve package.json from GitHub: ${error.message}`
+    );
+  }
 }

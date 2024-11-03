@@ -338,7 +338,7 @@ export async function packageCreate(
       console.log("Entered packageCreate service function with Content");
       console.log("Received body:", JSON.stringify({ Content: `${Content}`, URL: `${URL}`, debloat: `${debloatVal}`, JSProgram: `${JSProgram ?? null}` }));
 
-      const s3Key = `packages/${packageId}/v${packageVersion}/package.zip`;
+      const s3Key = `packages/${packageName}/v${packageVersion}/package.zip`;
 
       const s3Params = {
         Bucket: bucketName,
@@ -365,12 +365,12 @@ export async function packageCreate(
         console.log(`Downloading file from URL: ${apiUrl}`);
         contentBuffer = await downloadFile(apiUrl);
         returnString = btoa(contentBuffer);
-        const s3Key = `packages/${packageId}/v${packageVersion}/package.zip`;
+        const s3Key = `packages/${packageName}/v${packageVersion}/package.zip`;
         // Upload the downloaded file as a zip to S3
         const s3Params = {
           Bucket: bucketName,
           Key: s3Key,
-          Body: Buffer.from(contentBuffer),
+          Body: Buffer.from(contentBuffer, 'base64'),
           ContentType: "application/zip",
         };
 

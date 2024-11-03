@@ -19,15 +19,16 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
     .json({ error: err.message || "An unexpected error occurred" });
 });
 
-app.listen(port, () => {
-  console.log(`Server is running on http://localhost:${port}`);
-  routes(app);
-});
+// app.listen(port, () => {
+//   console.log(`Server is running on http://localhost:${port}`);
+//   routes(app);
+// });
 
 console.log("is this worki");
-/* console.log("Before registering routes");
-console.log("Routes registered"); */
-// routes(app);
+console.log("Before registering routes");
+routes(app);
+console.log("Routes registered");
+
 
 const handler = serverless(app);
 export { handler };
