@@ -2,9 +2,12 @@ import express, { Request, Response, NextFunction } from "express";
 import cors from "cors";
 import routes from "./routes";
 import serverless from "serverless-http";
+import cookieParser from "cookie-parser";
 
 const app = express();
 const port = 3000;
+
+app.use(cookieParser());
 
 app.use(cors());
 app.use(express.json({ limit: "50mb" }));

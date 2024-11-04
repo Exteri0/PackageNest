@@ -1,5 +1,6 @@
 // src/types.ts
 import { Request } from "express";
+import { JwtPayload } from "jsonwebtoken";
 
 // Extend the Request interface to include the openapi property
 export interface OpenApiRequest extends Request {
@@ -8,6 +9,15 @@ export interface OpenApiRequest extends Request {
       metric_name: string | undefined;
     };
   };
+  user?: JWTUser;
+}
+
+export interface JWTUser extends JwtPayload {
+  name: string;
+  isAdmin: boolean;
+  isBackend: boolean;
+  iat: number;
+  exp: number;
 }
 
 export interface PackageMetrics {

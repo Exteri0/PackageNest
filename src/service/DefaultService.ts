@@ -1,15 +1,22 @@
 "use strict";
 
 import { Request, Response, NextFunction, response } from "express";
-import * as https from 'https';
+import * as https from "https";
 import awsSdk from "aws-sdk";
-import axios from 'axios';
+import axios from "axios";
 import { executeSqlFile } from "../queries/resetDB";
 import "dotenv/config";
 import { getDbPool } from "./databaseConnection";
 import * as packageQueries from "../queries/packageQueries";
-import {calculateMetrics} from "../Metrics/metricExport";
+import { calculateMetrics } from "../Metrics/metricExport";
 import { CustomError } from "../utils/types";
+import jwt from "jsonwebtoken";
+import bcrypt from "bcrypt";
+import {
+  createUser,
+  getAllUsers,
+  getUserByUsername,
+} from "../queries/userQueries";
 
 const bucketName = process.env.S3_BUCKET_NAME;
 const s3 = new awsSdk.S3();
@@ -26,6 +33,7 @@ export interface AuthenticationRequest {
   User: {
     name: string;
     isAdmin: boolean;
+    isBackend: boolean;
   };
   Secret: {
     password: string;
@@ -94,6 +102,49 @@ export interface PackageQuery {
   Name: string;
 }
 
+export function registerUser(body: AuthenticationRequest): Promise<void> {
+  return new Promise(async function (resolve, reject) {
+    if (body) {
+      const user = body.User;
+      const secret = body.Secret.password;
+      const hashedPassword = await bcrypt.hash(secret, 10);
+
+      try {
+        await createUser(
+          user.name,
+          hashedPassword,
+          user.isAdmin,
+          user.isBackend
+        );
+        resolve();
+      } catch (error) {
+        console.error("Error occurred in registerUser:", error);
+        if (error instanceof CustomError)
+          reject(
+            new CustomError(`Failed to register user: ${error.message}`, 500)
+          );
+        else reject(new CustomError(`Failed to register user`, 500));
+      }
+    } else {
+      reject(
+        new CustomError("Missing required properties 'User' or 'Password'", 400)
+      );
+    }
+  });
+}
+
+export function getUsers(): Promise<any> {
+  return new Promise(async function (resolve, reject) {
+    try {
+      const result = await getAllUsers();
+      resolve(result);
+    } catch (error) {
+      console.error("Error occurred in getAllUsers:", error);
+      reject(new CustomError(`Failed to retrieve users`, 500));
+    }
+  });
+}
+
 /**
  * (NON-BASELINE)
  * Create an access token.
@@ -104,19 +155,42 @@ export interface PackageQuery {
 export function createAuthToken(
   body: AuthenticationRequest
 ): Promise<AuthenticationToken> {
-  return new Promise(function (resolve, reject) {
-    if (body) {
-      const token =
-        "bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c";
-      resolve({ token });
+  return new Promise(async function (resolve, reject) {
+    console.log("Entered createAuthToken function with body:", body);
+    if (body.User && body.User.name && body.Secret && body.Secret.password) {
+      const foundUser = await getUserByUsername(body.User.name);
+      if (foundUser) {
+        const validPassword = await bcrypt.compare(
+          body.Secret.password,
+          foundUser.password_hash
+        );
+        if (validPassword) {
+          const token = jwt.sign(
+            {
+              name: body.User.name,
+              isAdmin: body.User.isAdmin,
+              isBackend: body.User.isBackend,
+            },
+            process.env.JWT_SECRET ?? "defaultSecret",
+            {
+              expiresIn: "10h",
+            }
+          );
+          resolve({ token: token });
+        } else {
+          reject(new CustomError("Invalid password", 401));
+        }
+      } else {
+        reject(new CustomError("User not found", 404));
+      }
     } else {
-      reject({
-        message: "Missing required properties 'User' or 'Secret'",
-        status: 400,
-      });
+      reject(
+        new CustomError("Missing required properties 'User' or 'Password'", 400)
+      );
     }
   });
 }
+
 /*
 Test body:
 {
@@ -231,7 +305,6 @@ export async function packageByRegExGet(
   }
 }
 
-
 /**
  * (BASELINE)
  * Upload or Ingest a new package.
@@ -258,14 +331,18 @@ export async function packageCreate(
   console.log("Received xAuthorization:", xAuthorization);
 
   if (!bucketName) {
-    console.error("S3_BUCKET_NAME is not defined in the environment variables.");
-    throw new CustomError("S3_BUCKET_NAME is not defined in the environment variables.", 500);
+    console.error(
+      "S3_BUCKET_NAME is not defined in the environment variables."
+    );
+    throw new CustomError(
+      "S3_BUCKET_NAME is not defined in the environment variables.",
+      500
+    );
   }
 
-  if (body.Content && !body.URL){
+  if (body.Content && !body.URL) {
     console.log("Entered packageCreate service function with Content");
     console.log("Received body:", JSON.stringify(body));
-    
 
     packageName = sanitizeInput(body.Name);
     packageVersion = "1.0.0"; // Assuming a default versions
@@ -286,16 +363,15 @@ export async function packageCreate(
       console.error("Error occurred in packageCreate:", error);
       throw new CustomError(`Failed to upload content`, 500);
     }
-
-  }
-  else if (body.URL && !body.Content){
-
+  } else if (body.URL && !body.Content) {
     console.log("Entered packageCreate service function with URL");
     console.log("Received body:", JSON.stringify(body));
 
     // RATE
 
-    const repoMatch = (body.URL).match(/github\.com\/([^/]+)\/([^/]+)(?:\/blob\/([^/]+)\/(.+))?/);
+    const repoMatch = body.URL.match(
+      /github\.com\/([^/]+)\/([^/]+)(?:\/blob\/([^/]+)\/(.+))?/
+    );
     if (!repoMatch) throw new CustomError("Invalid GitHub URL format", 400);
 
     const owner = repoMatch[1];
@@ -310,7 +386,6 @@ export async function packageCreate(
       console.log(`Downloading file from URL: ${apiUrl}`);
       contentBuffer = await downloadFile(apiUrl);
 
-
       const s3Key = `packages/${packageId}/v${packageVersion}/package.zip`;
       // Upload the downloaded file as a zip to S3
       const s3Params = {
@@ -324,13 +399,19 @@ export async function packageCreate(
       await s3.putObject(s3Params).promise();
     } catch (error) {
       console.error("Error downloading or processing file from URL:", error);
-      throw new CustomError(`Failed to download or upload package from URL`, 500);
+      throw new CustomError(
+        `Failed to download or upload package from URL`,
+        500
+      );
     }
-    
-  }
-  else {
-    console.error("Invalid request body: 'Name' and 'Content' or 'URL' are required.");
-    throw new CustomError("There is missing field(s) in the PackageData or it is formed improperly (e.g. Content and URL ar both set)", 400);
+  } else {
+    console.error(
+      "Invalid request body: 'Name' and 'Content' or 'URL' are required."
+    );
+    throw new CustomError(
+      "There is missing field(s) in the PackageData or it is formed improperly (e.g. Content and URL ar both set)",
+      400
+    );
   }
 
   try {
@@ -340,19 +421,34 @@ export async function packageCreate(
       ON CONFLICT (name, version) DO NOTHING
       RETURNING package_id;
     `;
-    await getDbPool().query(insertPackageQuery, [packageName, packageVersion, packageId, body.Content ? true : false]);
+    await getDbPool().query(insertPackageQuery, [
+      packageName,
+      packageVersion,
+      packageId,
+      body.Content ? true : false,
+    ]);
 
     const insertMetadataQuery = `
       INSERT INTO public.package_metadata (package_id, name, version)
       VALUES ($1, $2, $3);
     `;
-    await getDbPool().query(insertMetadataQuery, [packageId, packageName, packageVersion]);
+    await getDbPool().query(insertMetadataQuery, [
+      packageId,
+      packageName,
+      packageVersion,
+    ]);
 
     const insertDataQuery = `
       INSERT INTO public.package_data (package_id, content_type, url, debloat, js_program)
       VALUES ($1, $2, $3, $4, $5);
     `;
-    await getDbPool().query(insertDataQuery, [packageId, body.Content ? true : false , body.URL || "null", body.debloat || false, body.JSProgram]);
+    await getDbPool().query(insertDataQuery, [
+      packageId,
+      body.Content ? true : false,
+      body.URL || "null",
+      body.debloat || false,
+      body.JSProgram,
+    ]);
 
     console.log("Package and metadata inserted successfully.");
 
@@ -371,19 +467,21 @@ export async function packageCreate(
     return response;
   } catch (error) {
     console.error("Error occurred in packageCreate:", error);
-    throw new CustomError(`Failed to upload package or insert into database`, 500);
+    throw new CustomError(
+      `Failed to upload package or insert into database`,
+      500
+    );
   }
 }
 
 async function downloadFile(url: string): Promise<Buffer> {
   const response = await axios.get(url, {
-    responseType: 'arraybuffer',
+    responseType: "arraybuffer",
     timeout: 10000, // 10 seconds
-    headers: { 'User-Agent': 'Node.js' },
+    headers: { "User-Agent": "Node.js" },
   });
   return response.data;
 }
-
 
 function sanitizeInput(input: string): string {
   return input.replace(/[^a-zA-Z0-9-_\.]/g, "");
@@ -457,7 +555,10 @@ export function packageIdCostGET(
  * @param xAuthorization AuthenticationToken
  * @returns Promise<PackageRating>
  */
-export async function packageRate(id: PackageID, xAuthorization: AuthenticationToken): Promise<PackageRating> {
+export async function packageRate(
+  id: PackageID,
+  xAuthorization: AuthenticationToken
+): Promise<PackageRating> {
   /* return new Promise(function(resolve) {
     const examples: { [key: string]: PackageRating } = {
       "application/json": {
@@ -515,7 +616,8 @@ export async function packageRate(id: PackageID, xAuthorization: AuthenticationT
   response.NetScoreLatency = testOutput.NetScore_Latency;
   response.PullRequestLatency = testOutput.PullRequest_Latency;
   response.RampUpLatency = testOutput.RampUp_Latency;
-  response.ResponsiveMaintainerLatency = testOutput.ResponsiveMaintainer_Latency;
+  response.ResponsiveMaintainerLatency =
+    testOutput.ResponsiveMaintainer_Latency;
   return Promise.resolve(response);
 }
 
@@ -535,8 +637,13 @@ export async function packageRetrieve(
   console.log("Received xAuthorization:", xAuthorization);
 
   if (!bucketName) {
-    console.error("S3_BUCKET_NAME is not defined in the environment variables.");
-    throw new CustomError("S3_BUCKET_NAME is not defined in the environment variables.", 500);
+    console.error(
+      "S3_BUCKET_NAME is not defined in the environment variables."
+    );
+    throw new CustomError(
+      "S3_BUCKET_NAME is not defined in the environment variables.",
+      500
+    );
   }
 
   try {
@@ -550,7 +657,10 @@ export async function packageRetrieve(
     `;
     const metadataValues = [id];
 
-    const metadataResult = await getDbPool().query(metadataQuery, metadataValues);
+    const metadataResult = await getDbPool().query(
+      metadataQuery,
+      metadataValues
+    );
     const metadata = metadataResult.rows[0];
 
     if (!metadata) {
@@ -558,7 +668,7 @@ export async function packageRetrieve(
       throw new CustomError("Package not found.", 404);
     }
 
-    console.log("Metadata of the query: ",metadata);
+    console.log("Metadata of the query: ", metadata);
 
     // Construct the S3 key to retrieve the zip file based on package_id
     //const s3Key = `packages/${packageId}/v${packageVersion}/package.zip`;
@@ -574,7 +684,10 @@ export async function packageRetrieve(
     const content = s3Object.Body ? s3Object.Body.toString("base64") : null;
 
     if (!content) {
-      console.error("Failed to retrieve package content from S3 for key:", s3Key);
+      console.error(
+        "Failed to retrieve package content from S3 for key:",
+        s3Key
+      );
       throw new CustomError("Package content not found in S3.", 404);
     }
 
@@ -722,9 +835,7 @@ export async function packagesList(
               queryValues.push(`${major}.${minor}.%`);
               queryIndex++;
             } else {
-              throw new CustomError(`Invalid version format: ${version}`,
-                400
-              );
+              throw new CustomError(`Invalid version format: ${version}`, 400);
             }
           }
 

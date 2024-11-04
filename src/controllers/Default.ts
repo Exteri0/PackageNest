@@ -5,22 +5,37 @@ import * as utils from "../utils/writer";
 import * as Default from "../service/DefaultService";
 import { calculateMetrics } from "../Metrics/metricExport";
 import { CustomError, OpenApiRequest } from "../utils/types";
+import jwt from "jsonwebtoken";
 
 // Things with an input like offset might cause trouble
 
-export const CreateAuthToken = (
+export const CreateAuthToken = async (
   req: OpenApiRequest,
   res: Response,
   next: NextFunction,
   body: any
-): void => {
-  Default.createAuthToken(body)
-    .then((response: any) => {
-      utils.writeJson(res, response);
-    })
-    .catch((response: any) => {
-      utils.writeJson(res, response);
+): Promise<void> => {
+  try {
+    console.log("Entered CreateAuth controller function");
+    const token = await Default.createAuthToken(body).then(
+      (response: { token: string }) => {
+        return response.token;
+      }
+    );
+    console.log(token);
+    res.cookie("authToken", token, {
+      maxAge: 10 * 60 * 60 * 1000,
+      httpOnly: true,
     });
+    res.json({ token: `bearer ${token}` });
+  } catch (error: any) {
+    console.error("Error in CreateAuth controller:", error);
+    if (error instanceof CustomError) {
+      res.status(error.status).json({ error: error.message });
+    } else {
+      res.status(500).json({ error: error.message || "An error occurred" });
+    }
+  }
 };
 
 export const PackageByNameGet = (
@@ -296,6 +311,37 @@ export const testGET = (
     });
 };
 
+export function registerUser(
+  req: Request<
+    import("express-serve-static-core").ParamsDictionary,
+    any,
+    any,
+    import("qs").ParsedQs,
+    Record<string, any>
+  >,
+  res: Response<any, Record<string, any>>,
+  next: NextFunction
+) {
+  Default.registerUser(req.body).then((response: any) => {
+    utils.writeJson(res, response);
+  });
+}
+
+export function getUsers(
+  req: Request<
+    import("express-serve-static-core").ParamsDictionary,
+    any,
+    any,
+    import("qs").ParsedQs,
+    Record<string, any>
+  >,
+  res: Response<any, Record<string, any>>,
+  next: NextFunction
+) {
+  Default.getUsers().then((response: any) => {
+    utils.writeJson(res, response);
+  });
+}
 /* export const testMetricNameGET = (
   req: OpenApiRequest,
   res: Response,

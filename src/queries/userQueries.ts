@@ -1,5 +1,4 @@
-import { getDbPool } from "../service/databaseConnection"
-
+import { getDbPool } from "../service/databaseConnection";
 
 // Retrieve a user by ID
 export const getUserById = async (userId: number) => {
@@ -15,7 +14,7 @@ export const getUserById = async (userId: number) => {
 
 // Retrieve a user by username
 export const getUserByUsername = async (username: string) => {
-  const query = "SELECT * FROM users WHERE username = $1";
+  const query = "SELECT * FROM users WHERE name = $1";
   try {
     const res = await getDbPool().query(query, [username]);
     return res.rows[0];
@@ -28,16 +27,21 @@ export const getUserByUsername = async (username: string) => {
 // Create a new user
 export const createUser = async (
   username: string,
-  email: string,
-  password: string,
-  isAdmin: boolean
+  hashed_password: string,
+  isAdmin: boolean,
+  isBackend: boolean
 ) => {
   const query = `
-    INSERT INTO users (username, email, password, is_admin) 
+    INSERT INTO users (name, password_hash, isAdmin, isBackend) 
     VALUES ($1, $2, $3, $4) 
     RETURNING *`;
   try {
-    const res = await getDbPool().query(query, [username, email, password, isAdmin]);
+    const res = await getDbPool().query(query, [
+      username,
+      hashed_password,
+      isAdmin,
+      isBackend,
+    ]);
     return res.rows[0];
   } catch (error) {
     console.error("Error creating user:", error);

@@ -1,5 +1,6 @@
 import { Express, Request, Response, NextFunction } from "express";
 import * as DefaultController from "./controllers/Default";
+import { verifyJWT } from "./middleware/verifyJWT";
 
 export default (app: Express) => {
   // POST /packages (PackagesList expects req, res, next, body, offset)
@@ -86,6 +87,7 @@ export default (app: Express) => {
   app.put(
     "/authenticate",
     (req: Request, res: Response, next: NextFunction) => {
+      console.log("Received PUT /authenticate request");
       DefaultController.CreateAuthToken(req, res, next, req.body);
     }
   );
@@ -115,6 +117,26 @@ export default (app: Express) => {
   app.get("/test", (req: Request, res: Response, next: NextFunction) => {
     DefaultController.testGET(req, res, next);
   });
+
+  app.post("/register", (req: Request, res: Response, next: NextFunction) => {
+    DefaultController.registerUser(req, res, next);
+  });
+
+  app.get("/getUsers", (req: Request, res: Response, next: NextFunction) => {
+    console.log("Received GET /getUsers request");
+    DefaultController.getUsers(req, res, next);
+  });
+
+  app.get(
+    "/protected",
+    (req: Request, res: Response, next: NextFunction) => {
+      verifyJWT(req, res, next, false, true);
+    },
+    (req: Request, res: Response, next: NextFunction) => {
+      console.log("Received GET /protected request");
+      res.status(200).send("Protected route accessed");
+    }
+  );
 
   // GET /test/metrics/{metric_name} (testMetricNameGET expects req, res, next)
   /* app.get("/test/metrics/:metric_name", (req: Request, res: Response, next: NextFunction) => {

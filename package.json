@@ -11,7 +11,7 @@
     "deploy": "sls deploy",
     "dev": "sls dev",
     "lint": "eslint \"src/**/*.{js,mjs,cjs,ts,jsx,tsx}\"",
-    "devlocal": "tsx watch src/index.ts" 
+    "devlocal": "tsx watch src/index.ts"
   },
   "keywords": [
     "swagger"
@@ -22,15 +22,20 @@
     "@aws-sdk/client-s3": "^3.676.0",
     "@aws-sdk/lib-storage": "^3.679.0",
     "@octokit/graphql": "^8.1.1",
+    "@types/bcrypt": "^5.0.2",
+    "@types/cookie-parser": "^1.4.7",
     "@types/cors": "^2.8.17",
     "aws-sdk": "^2.1691.0",
     "aws-serverless-express": "^3.4.0",
+    "bcrypt": "^5.1.1",
     "body-parser": "^1.20.3",
     "connect": "^3.2.0",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "express": "^4.21.1",
     "isomorphic-git": "^1.27.1",
     "js-yaml": "^3.3.0",
+    "jsonwebtoken": "^9.0.2",
     "oas3-tools": "^2.2.3",
     "pg": "^8.13.1",
     "serverless": "^4.4.7",
@@ -43,6 +48,7 @@
   "devDependencies": {
     "@eslint/js": "^9.13.0",
     "@octokit/types": "^13.6.1",
+    "@types/jsonwebtoken": "^9.0.7",
     "@types/node": "^22.7.5",
     "@types/pg": "^8.11.10",
     "@types/unzipper": "^0.10.10",
