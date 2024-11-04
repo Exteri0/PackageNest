@@ -17,6 +17,8 @@ import {
   getAllUsers,
   getUserByUsername,
 } from "../queries/userQueries";
+import { v5 as uuidv5 } from 'uuid';
+import { getPackageInfoZipFile, getPackageInfoRepo } from "../utils/retrievePackageJson";
 
 const bucketName = process.env.S3_BUCKET_NAME;
 const s3 = new awsSdk.S3();
@@ -314,173 +316,193 @@ export async function packageByRegExGet(
  * @returns Promise<Package>
  */
 export async function packageCreate(
-  body: {
-    Content: string;
-    JSProgram: string;
-    URL: string;
-    debloat: boolean;
-    Name: string;
+  Content?: string,
+  JSProgram?: string,
+  URL?: string,
+  debloat?: boolean,
+  Name?: string,
+  metadata?: {
+    Version?: string;
+    ID?: string;
+    Name?: string;
   },
-  xAuthorization: AuthenticationToken
-) {
-  let packageName: string | undefined;
-  let packageVersion: string | undefined;
-  let packageId: string | undefined;
-  let contentBuffer: Buffer | undefined;
-
+  xAuthorization?: AuthenticationToken) {
+  
+  let packageName: string | undefined = metadata?.Name?.trim();
+  let packageVersion: string | undefined = metadata?.Version?.trim();
+  let packageId: string | undefined = metadata?.ID?.trim();
+  let contentBuffer: string | undefined = undefined;
+  let returnString: string | undefined = undefined;
+  let repoOwner: string | undefined = undefined;
+  let repoName: string | undefined = undefined;
+  let debloatVal: boolean = debloat ?? false;
   console.log("Received xAuthorization:", xAuthorization);
 
-  if (!bucketName) {
-    console.error(
-      "S3_BUCKET_NAME is not defined in the environment variables."
-    );
-    throw new CustomError(
-      "S3_BUCKET_NAME is not defined in the environment variables.",
-      500
-    );
+  if (!packageVersion) {
+    console.log("Version is not provided, setting to default 1.0.0");
+    packageVersion = "1.0.0";
   }
 
-  if (body.Content && !body.URL) {
-    console.log("Entered packageCreate service function with Content");
-    console.log("Received body:", JSON.stringify(body));
-
-    packageName = sanitizeInput(body.Name);
-    packageVersion = "1.0.0"; // Assuming a default versions
-    packageId = packageName.toLowerCase().replace(/[^a-z0-9\-]/g, "");
-
-    const s3Key = `packages/${packageId}/v${packageVersion}/package.zip`;
-
-    const s3Params = {
-      Bucket: bucketName,
-      Key: s3Key,
-      Body: Buffer.from(body.Content, "base64"),
-      ContentType: "application/zip",
-    };
-    try {
-      console.log("Uploading package to S3 with key:", s3Key);
-      await s3.putObject(s3Params).promise();
-    } catch (error) {
-      console.error("Error occurred in packageCreate:", error);
-      throw new CustomError(`Failed to upload content`, 500);
+  if ((!URL && !Content) || (URL && Content)) {
+    console.error("Invalid request body: 'Content' or 'URL' (exclusively) is required.");
+    throw new CustomError("Invalid request body. 'Content' or 'URL' (exclusively) is required.", 400);
+  }
+  else {
+    if (!packageName && !Name) {
+      console.log("Name is not in neither metadata or body, getting it from the URL or package json.");
+      if (URL) {
+        const repoMatch = URL.match(/github\.com\/([^/]+)\/([^/]+)(?:\/blob\/([^/]+)\/(.+))?/);
+        if (!repoMatch) throw new CustomError("Invalid GitHub URL format", 400);
+        repoOwner = repoMatch[1];
+        repoName = repoMatch[2];
+        try {
+          const responseInfo = await getPackageInfoRepo(repoOwner, repoName);
+          packageName = responseInfo?.name;
+          packageVersion = responseInfo?.version;
+        }
+        catch (error: any) {
+          console.error("Error occurred in retrieving info from package json using URL", error);
+          throw new CustomError(`Failed to retrieve package info from package json using URL`, 500);
+        }
+      }
+      else if (Content) {
+        try {
+          const responseInfo = await getPackageInfoZipFile(Content);
+          packageName = responseInfo.name;
+          packageVersion = responseInfo.version;
+        }
+        catch (error: any) {
+          console.error("Error occurred in retrieving info from package json:", error);
+          throw new CustomError(`Failed to retrieve package info from package json`, 500);
+        }
+      }
     }
-  } else if (body.URL && !body.Content) {
-    console.log("Entered packageCreate service function with URL");
-    console.log("Received body:", JSON.stringify(body));
+    
+    else if (Name) {
+      console.log("name is provided in body, using that instead of metadata, or package json.");
+      packageName = Name.trim();
+    }
 
-    // RATE
+    const NAMESPACE = "6ba7b810-9dad-11d1-80b4-00c04fd430c8";
 
-    const repoMatch = body.URL.match(
-      /github\.com\/([^/]+)\/([^/]+)(?:\/blob\/([^/]+)\/(.+))?/
-    );
-    if (!repoMatch) throw new CustomError("Invalid GitHub URL format", 400);
+    if (!packageId || packageId !== uuidv5(`${packageName}-${packageVersion}`, NAMESPACE)) {
+      console.log("packageId is not provided or does not match the UUIDv5 of the packageName and packageVersion, regenerating.");
+      packageId = uuidv5(`${packageName}-${packageVersion}`, NAMESPACE);
+    }
 
-    const owner = repoMatch[1];
-    const repo = repoMatch[2];
-    const apiUrl = `https://api.github.com/repos/${owner}/${repo}/zipball`;
 
-    packageName = repo;
-    packageVersion = "1.0.0"; // Assuming a default versions
-    packageId = packageName.toLowerCase().replace(/[^a-z0-9\-]/g, "");
-
-    try {
-      console.log(`Downloading file from URL: ${apiUrl}`);
-      contentBuffer = await downloadFile(apiUrl);
-
-      const s3Key = `packages/${packageId}/v${packageVersion}/package.zip`;
-      // Upload the downloaded file as a zip to S3
-      const s3Params = {
-        Bucket: bucketName,
-        Key: s3Key,
-        Body: Buffer.from(contentBuffer),
-        ContentType: "application/zip",
-      };
-
-      console.log("Uploading package from URL to S3 with key:", s3Key);
-      await s3.putObject(s3Params).promise();
-    } catch (error) {
-      console.error("Error downloading or processing file from URL:", error);
+    if (!bucketName) {
+      console.error(
+        "S3_BUCKET_NAME is not defined in the environment variables."
+      );
       throw new CustomError(
-        `Failed to download or upload package from URL`,
+        "S3_BUCKET_NAME is not defined in the environment variables.",
         500
       );
     }
-  } else {
-    console.error(
-      "Invalid request body: 'Name' and 'Content' or 'URL' are required."
-    );
-    throw new CustomError(
-      "There is missing field(s) in the PackageData or it is formed improperly (e.g. Content and URL ar both set)",
-      400
-    );
-  }
 
-  try {
-    const insertPackageQuery = `
-      INSERT INTO public.packages (name, version, package_id, content_type)
-      VALUES ($1, $2, $3, $4)
-      ON CONFLICT (name, version) DO NOTHING
-      RETURNING package_id;
-    `;
-    await getDbPool().query(insertPackageQuery, [
-      packageName,
-      packageVersion,
-      packageId,
-      body.Content ? true : false,
-    ]);
+    if (await packageQueries.packageExistsQuery(packageId)) {
+      console.error("Package already exists with ID:", packageId);
+      throw new CustomError("Package already exists.", 409);
+    }
 
-    const insertMetadataQuery = `
-      INSERT INTO public.package_metadata (package_id, name, version)
-      VALUES ($1, $2, $3);
-    `;
-    await getDbPool().query(insertMetadataQuery, [
-      packageId,
-      packageName,
-      packageVersion,
-    ]);
+    if (Content && !URL) {
+      returnString = Content;
+      console.log("Entered packageCreate service function with Content");
+      console.log("Received body:", JSON.stringify({ Content: `${Content}`, URL: `${URL}`, debloat: `${debloatVal}`, JSProgram: `${JSProgram ?? null}` }));
 
-    const insertDataQuery = `
-      INSERT INTO public.package_data (package_id, content_type, url, debloat, js_program)
-      VALUES ($1, $2, $3, $4, $5);
-    `;
-    await getDbPool().query(insertDataQuery, [
-      packageId,
-      body.Content ? true : false,
-      body.URL || "null",
-      body.debloat || false,
-      body.JSProgram,
-    ]);
+      const s3Key = `packages/${packageName}/v${packageVersion}/package.zip`;
 
-    console.log("Package and metadata inserted successfully.");
+      const s3Params = {
+        Bucket: bucketName,
+        Key: s3Key,
+        Body: Buffer.from(Content, "base64"),
+        ContentType: "application/zip",
+      };
+      try {
+        console.log("Uploading package to S3 with key:", s3Key);
+        await s3.putObject(s3Params).promise();
+      } catch (error) {
+        console.error("Error occurred in packageCreate:", error);
+        throw new CustomError(`Failed to upload content`, 500);
+      }
+    } else if (URL && !Content) {
+      console.log("Entered packageCreate service function with URL");
+      console.log("Received body:", JSON.stringify({ URL: `${URL}`, debloat: `${debloatVal}`, JSProgram: `${JSProgram ?? null}` }));
 
-    const response = {
-      metadata: {
-        Name: packageName,
-        Version: packageVersion,
-        ID: packageId,
-      },
-      data: {
-        Content: body.Content,
-        JSProgram: body.JSProgram,
-      },
-    };
+      // RATE
 
-    return response;
-  } catch (error) {
-    console.error("Error occurred in packageCreate:", error);
-    throw new CustomError(
-      `Failed to upload package or insert into database`,
-      500
-    );
+      const apiUrl = `https://api.github.com/repos/${repoOwner}/${repoName}/zipball`;
+
+      try {
+        console.log(`Downloading file from URL: ${apiUrl}`);
+        contentBuffer = await downloadFile(apiUrl);
+        returnString = btoa(contentBuffer);
+        const s3Key = `packages/${packageName}/v${packageVersion}/package.zip`;
+        // Upload the downloaded file as a zip to S3
+        const s3Params = {
+          Bucket: bucketName,
+          Key: s3Key,
+          Body: Buffer.from(contentBuffer, 'base64'),
+          ContentType: "application/zip",
+        };
+
+        console.log("Uploading package from URL to S3 with key:", s3Key);
+        await s3.putObject(s3Params).promise();
+      } catch (error) {
+        console.error("Error downloading or processing file from URL:", error);
+        throw new CustomError(
+          `Failed to download or upload package from URL`,
+          500
+        );
+      }
+    }
+
+    try {
+    
+      if (!contentBuffer) //no url download, content type is true
+        await packageQueries.insertPackageQuery(packageName, packageVersion ?? "1.0.0", packageId, true);
+      else
+        await packageQueries.insertPackageQuery(packageName, packageVersion ?? "1.0.0", packageId, false);
+    
+      await packageQueries.insertIntoMetadataQuery(packageName, packageVersion ?? "1.0.0", packageId);
+    
+      if (!contentBuffer)
+        await packageQueries.insertIntoPackageDataQuery(packageId, true, URL, debloatVal, JSProgram);
+      else
+        await packageQueries.insertIntoPackageDataQuery(packageId, false, URL, debloatVal, JSProgram);
+
+      console.log("Package and metadata, and data registered successfully.");
+
+      const response = {
+        metadata: {
+          Name: packageName,
+          Version: packageVersion,
+          ID: packageId,
+        },
+        data: {
+          Content: returnString,
+          JSProgram: JSProgram,
+        },
+      };
+
+      return response;
+    } catch (error) {
+      console.error("Error occurred in packageCreate:", error);
+      throw new CustomError(
+        `Failed to upload package or insert into database`,
+        500
+      );
+    }
   }
 }
 
-async function downloadFile(url: string): Promise<Buffer> {
+async function downloadFile(url: string): Promise<string> {
   const response = await axios.get(url, {
-    responseType: "arraybuffer",
-    timeout: 10000, // 10 seconds
-    headers: { "User-Agent": "Node.js" },
+    responseType: 'arraybuffer'
   });
-  return response.data;
+   const base64Encoded = Buffer.from(response.data).toString("base64");
+  return base64Encoded;
 }
 
 function sanitizeInput(input: string): string {
