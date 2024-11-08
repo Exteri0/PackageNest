@@ -1,6 +1,12 @@
 import { Express, Request, Response, NextFunction } from "express";
 import * as DefaultController from "./controllers/Default";
 import { verifyJWT } from "./middleware/verifyJWT";
+import { CustomError } from "/home/shay/a/manjuna0/461/PackageNest/src/utils/types.js";
+import { packageIdCostGET } from "/home/shay/a/manjuna0/461/PackageNest/src/service/DefaultService.js";
+import { AuthenticationToken } from "/home/shay/a/manjuna0/461/PackageNest/src/service/DefaultService.js"
+
+
+
 
 export default (app: Express) => {
   // POST /packages (PackagesList expects req, res, next, body, offset)
@@ -75,13 +81,29 @@ export default (app: Express) => {
   );
 
   // GET /package/{id}/cost (packageIdCostGET expects req, res, next, dependency)
-  app.get(
+  /*app.get(
     "/package/:id/cost",
     (req: Request, res: Response, next: NextFunction) => {
       const dependency = req.query.dependency === "true"; // optional query param for dependency
       DefaultController.packageIdCostGET(req, res, next, dependency);
     }
-  );
+  );*/
+  app.get("/package/:id/cost", async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const packageId = req.params.id;
+        //const xAuthorization = req.headers.authorization;
+        const dependency = req.query.dependency === "true"; // optional query param for dependency
+      
+        const cost = await packageIdCostGET({ id: packageId }, dependency);
+        res.json(cost);
+    } catch (error) {
+        if (error instanceof CustomError) {
+            res.status(error.status || 500).json({ message: error.message });
+        } else {
+            next(error); // Pass to default error handler
+        }
+    }
+});
 
   // PUT /authenticate (CreateAuthToken expects req, res, next, body)
   app.put(

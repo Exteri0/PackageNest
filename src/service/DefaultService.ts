@@ -9,6 +9,7 @@ import "dotenv/config";
 import { getDbPool } from "./databaseConnection";
 import * as packageQueries from "../queries/packageQueries";
 import { calculateMetrics } from "../Metrics/metricExport";
+import { calculateSize } from "../service/packageUtils";
 import { CustomError } from "../utils/types";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
@@ -553,7 +554,7 @@ export function packageDelete(
  * @param dependency boolean (optional)
  * @returns Promise<PackageCost>
  */
-export function packageIdCostGET(
+/*export function packageIdCostGET(
   id: PackageID,
   xAuthorization: AuthenticationToken,
   dependency?: boolean
@@ -567,6 +568,21 @@ export function packageIdCostGET(
     };
     resolve(examples["application/json"]);
   });
+}*/
+export async function packageIdCostGET(
+  id: PackageID,
+  //xAuthorization: AuthenticationToken,
+  dependency = true
+): Promise<PackageCost> {
+  try {
+      const totalSize = await calculateSize(id.id, dependency);
+      const standaloneSize = await calculateSize(id.id, false); // Standalone size calculation
+      return { standaloneCost: standaloneSize, totalCost: totalSize };
+  } catch (error) {
+      console.error("Error calculating package size:", error);
+      const errorMessage = (error as Error).message;
+      throw new CustomError(`Failed to calculate package size cost: ${errorMessage}`, 500);
+  }
 }
 
 /**
