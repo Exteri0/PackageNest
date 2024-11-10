@@ -7,7 +7,8 @@
     "prestart": "npm install",
     "start": "tsx src/index.ts",
     "build": "tsc",
-    "test": "echo \"no test specified but we'll accept it just this time\"",
+    "test": "vitest --run",
+    "test:watch": "echo \"no test specified but we'll accept it just this time\"",
     "deploy": "sls deploy",
     "dev": "sls dev",
     "lint": "eslint \"src/**/*.{js,mjs,cjs,ts,jsx,tsx}\"",
@@ -53,6 +54,8 @@
     "@types/node": "^22.7.5",
     "@types/pg": "^8.11.10",
     "@types/unzipper": "^0.10.10",
+    "@vitest/coverage-v8": "^2.1.4",
+    "axios": "^1.7.7",
     "cpx": "^1.5.0",
     "dotenv": "^16.4.5",
     "eslint": "^9.13.0",
@@ -62,6 +65,8 @@
     "tsx": "^4.19.1",
     "typescript": "^5.6.3",
     "typescript-eslint": "^8.11.0",
-    "uuid": "^11.0.2"
+    "uuid": "^11.0.2",
+    "vitest": "^2.1.4"
   }
+
 }

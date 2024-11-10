@@ -10,7 +10,7 @@ function handleNpmUrl(cliUrl: string) {
 }
 
 // Function to fetch data from a URL
-async function fetchUrl(url: string): Promise<any> {
+export async function fetchUrl(url: string, options: any = {}): Promise<any> {
   const response = await axios.get(url);
   return response.data;
 }
