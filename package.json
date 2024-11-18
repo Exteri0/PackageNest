@@ -5,10 +5,12 @@
   "main": "index.js",
   "scripts": {
     "prestart": "npm install",
+    "predeploy": "npm install",
     "start": "tsx src/index.ts",
-    "build": "tsc",
+    "build": "npx tsc",
+    "deploy": "pm2 start npm --name \"my-app\" -- start",
     "test": "echo \"no test specified but we'll accept it just this time\"",
-    "deploy": "sls deploy",
+    "deploy1": "sls deploy",
     "dev": "sls dev",
     "lint": "eslint \"src/**/*.{js,mjs,cjs,ts,jsx,tsx}\"",
     "devlocal": "tsx watch src/index.ts"

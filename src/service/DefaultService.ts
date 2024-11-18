@@ -24,7 +24,13 @@ import {
 } from "../utils/retrievePackageJson.js";
 
 const bucketName = process.env.S3_BUCKET_NAME;
-const s3 = new awsSdk.S3();
+const s3 = new awsSdk.S3(
+  {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_ACCESS_KEY_SECRET,
+    region: 'us-east-2', // Replace with your region
+  }
+);
 
 /**
  * Types

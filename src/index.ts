@@ -27,10 +27,10 @@ app.listen(port, () => {
   routes(app);
 });
 
-console.log("is this worki");
-console.log("Before registering routes");
+// console.log("is this worki");
+// console.log("Before registering routes");
 // routes(app);
-console.log("Routes registered");
+// console.log("Routes registered");
 
 const handler = serverless(app);
 export { handler };
