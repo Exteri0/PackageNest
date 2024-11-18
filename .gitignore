@@ -146,3 +146,5 @@ src/queries/localDBReset.ts
 src/queries/localDBReset.ts
 deployment
 indiana-sam-windws.pem
+deployment_tips.md
+build_and_deploy.sh
