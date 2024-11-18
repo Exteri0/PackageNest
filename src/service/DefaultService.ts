@@ -409,16 +409,16 @@ export async function packageCreate(
       packageName = Name.trim();
     }
 
-    const NAMESPACE = "6ba7b810-9dad-11d1-80b4-00c04fd430c8";
+    const ID_NAMESPACE = "6ba7b810-9dad-11d1-80b4-00c04fd430c8";
 
     if (
       !packageId ||
-      packageId !== uuidv5(`${packageName}-${packageVersion}`, NAMESPACE)
+      packageId !== uuidv5(`${packageName}-${packageVersion}`, ID_NAMESPACE)
     ) {
       console.log(
         "packageId is not provided or does not match the UUIDv5 of the packageName and packageVersion, regenerating."
       );
-      packageId = uuidv5(`${packageName}-${packageVersion}`, NAMESPACE);
+      packageId = uuidv5(`${packageName}-${packageVersion}`, ID_NAMESPACE);
     }
 
     if (!bucketName) {
@@ -675,7 +675,7 @@ export async function packageRate(
     };
     resolve(examples['application/json']);
   }); */
-  const testOutput: any = await calculateMetrics("");
+  const testOutput: any = await calculateMetrics("https://github.com/cloudinary/cloudinary_npm");
   let response: PackageRating = {
     GoodPinningPractice: 0,
     CorrectnessLatency: 0,
@@ -697,7 +697,7 @@ export async function packageRate(
   response.BusFactor = testOutput.BusFactor;
   response.Correctness = testOutput.Correctness;
   response.GoodPinningPractice = testOutput.GoodPinningPractice;
-  response.LicenseScore = testOutput.LicenseScore;
+  response.LicenseScore = testOutput.License;
   response.NetScore = testOutput.NetScore;
   response.PullRequest = testOutput.PullRequest;
   response.RampUp = testOutput.RampUp;
@@ -705,12 +705,11 @@ export async function packageRate(
   response.BusFactorLatency = testOutput.BusFactor_Latency;
   response.CorrectnessLatency = testOutput.Correctness_Latency;
   response.GoodPinningPracticeLatency = testOutput.GoodPinningPracticeLatency;
-  response.LicenseScoreLatency = testOutput.LicenseScore_Latency;
+  response.LicenseScoreLatency = testOutput.License_Latency;
   response.NetScoreLatency = testOutput.NetScore_Latency;
-  response.PullRequestLatency = testOutput.PullRequest_Latency;
+  response.PullRequestLatency = testOutput.PullRequestLatency;
   response.RampUpLatency = testOutput.RampUp_Latency;
-  response.ResponsiveMaintainerLatency =
-    testOutput.ResponsiveMaintainer_Latency;
+  response.ResponsiveMaintainerLatency = testOutput.ResponsiveMaintainer_Latency;
   return Promise.resolve(response);
 }
 

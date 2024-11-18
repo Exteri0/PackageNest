@@ -3,8 +3,6 @@
 import { graphql, GraphqlResponseError } from "@octokit/graphql";
 import "dotenv/config";
 
-const defaultOwner = "cloudinary";
-const defaultName = "cloudinary_npm";
 
 const githubToken = process.env.MY_TOKEN || "";
 if (!githubToken) {
@@ -23,8 +21,8 @@ function getLatency(startTime: number): number {
 }
 
 export async function calculateCorrectnessMetric(
-  owner: string = defaultOwner,
-  name: string = defaultName
+  owner: string,
+  name: string
 ): Promise<{ Correctness: number; Correctness_Latency: number }> {
   console.log(`Calculating correctness metric for ${owner}/${name}`);
   const startTime = performance.now();

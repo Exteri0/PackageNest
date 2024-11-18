@@ -5,6 +5,7 @@ import { calculateRampUpMetric } from "./rampUP.js";
 import { calculateCorrectnessMetric } from "./correctness.js";
 import { calculateResponsivenessMetric } from "./responsiveness.js";
 import { calculateLicenseMetric } from "./license.js";
+import { calculatePinningMetric } from "./goodPinning.js";
 
 function getLatency(startTime: number): number {
   return Number(((performance.now() - startTime) / 1000).toFixed(3));
@@ -14,14 +15,17 @@ export function calculateNetScore(
   licenseScore: number,
   rampUpScore: number,
   correctnessScore: number,
-  responsiveMaintainerScore: number
+  responsiveMaintainerScore: number,
+  goodPinningPracticeScore: number = 0,
+  busFactorScore: number = 0
 ): { NetScore: number } {
   return {
     NetScore:
       0.35 * licenseScore +
       0.2 * rampUpScore +
       0.25 * correctnessScore +
-      0.2 * responsiveMaintainerScore,
+      0.1 * responsiveMaintainerScore +
+      0.1 * goodPinningPracticeScore
   };
 }
 
@@ -38,18 +42,21 @@ export async function calculateMetrics(input: string) {
       { ResponsiveMaintainer, ResponsiveMaintainer_Latency },
       { Correctness, Correctness_Latency },
       { RampUp, RampUp_Latency },
+      { GoodPinningPractice, GoodPinningPracticeLatency },
     ] = await Promise.all([
       calculateLicenseMetric(owner, name),
       calculateResponsivenessMetric(owner, name),
       calculateCorrectnessMetric(owner, name),
       calculateRampUpMetric(owner, name),
+      calculatePinningMetric(owner, name),
     ]);
 
     let { NetScore } = calculateNetScore(
       License,
       RampUp,
       Correctness,
-      ResponsiveMaintainer
+      ResponsiveMaintainer,
+      GoodPinningPractice
     );
     const NetScore_Latency = getLatency(startTime);
     NetScore = Number(NetScore.toFixed(3));
@@ -66,8 +73,8 @@ export async function calculateMetrics(input: string) {
       BusFactor_Latency: -1,
       PullRequest: -1,
       PullRequestLatency: -1,
-      GoodPinningPractice: -1,
-      GoodPinningPracticeLatency: -1,
+      GoodPinningPractice,
+      GoodPinningPracticeLatency,
       ResponsiveMaintainer,
       ResponsiveMaintainer_Latency,
       License,

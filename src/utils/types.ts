@@ -35,3 +35,22 @@ export class CustomError extends Error {
     Object.setPrototypeOf(this, CustomError.prototype);
   }
 }
+
+// types.ts
+
+export interface PackageJson {
+  name: string;
+  version: string;
+  dependencies?: Record<string, string>;
+  devDependencies?: Record<string, string>;
+  peerDependencies?: Record<string, string>;
+  optionalDependencies?: Record<string, string>;
+  [key: string]: any; // For any additional fields
+}
+
+export interface PackageJsonResult {
+  name: string;
+  version: string;
+  dependencies: Record<string, string>;
+}
+

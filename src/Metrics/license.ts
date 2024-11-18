@@ -3,8 +3,7 @@
 import { graphql, GraphqlResponseError } from "@octokit/graphql";
 import axios from "axios";
 import "dotenv/config";
-const defaultOwner = "cloudinary";
-const defaultName = "cloudinary_npm";
+
 
 const githubToken = process.env.MY_TOKEN || "";
 if (!githubToken) {
@@ -41,8 +40,8 @@ function getLatency(startTime: number): number {
 }
 
 export async function calculateLicenseMetric(
-  owner: string = defaultOwner,
-  name: string = defaultName
+  owner: string,
+  name: string
 ): Promise<{ License: number; License_Latency: number }> {
   console.log(`Calculating license metric for ${owner}/${name}`);
   const startTime = performance.now();
@@ -138,6 +137,6 @@ export async function calculateLicenseMetric(
     } else {
       console.error(error);
     }
-    return { License: 0, License_Latency: getLatency(startTime) };
+    return { License: -1, License_Latency: 0 };
   }
 }
