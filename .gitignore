@@ -1,6 +1,7 @@
 # Ignore the personal directory where each one can expirement with his code before pushing
 ignorethis/
 src/config.json
+private_key.pem
 
 # Logs
 logs

@@ -1,6 +1,6 @@
 import { Express, Request, Response, NextFunction } from "express";
-import * as DefaultController from "./controllers/Default";
-import { verifyJWT } from "./middleware/verifyJWT";
+import * as DefaultController from "./controllers/Default.js";
+import { verifyJWT } from "./middleware/verifyJWT.js";
 
 export default (app: Express) => {
   // POST /packages (PackagesList expects req, res, next, body, offset)

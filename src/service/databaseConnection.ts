@@ -1,7 +1,8 @@
-import { Pool } from "pg";
+import * as pg from "pg";
 import "dotenv/config";
+const { Pool } = pg;
 
-let pool: Pool | undefined;
+let pool: any;
 
 export function getDbPool() {
   if (!pool) {
@@ -17,7 +18,7 @@ export function getDbPool() {
       // ssl: false,
     });
 
-    pool.on("error", (err) => {
+    pool.on("error", (err: any) => {
       console.error("Unexpected error on idle client", err);
       process.exit(-1);
     });

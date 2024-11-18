@@ -1,9 +1,9 @@
 // rampup_metric.ts
 
 import * as git from "isomorphic-git";
-import http from "isomorphic-git/http/node";
+import http from "isomorphic-git/http/node/index.js";
 import * as path from "path";
-import { s3fs } from "./customS3Fs"; // Import the s3fs instance
+import { s3fs } from "./customS3Fs.js"; // Import the s3fs instance
 import { promisify } from "util";
 
 const defaultOwner = "cloudinary";

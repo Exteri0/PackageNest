@@ -1,10 +1,10 @@
 // index.ts
 
-import { fetchRepoInfo } from "./infoRepo";
-import { calculateRampUpMetric } from "./rampUP";
-import { calculateCorrectnessMetric } from "./correctness";
-import { calculateResponsivenessMetric } from "./responsiveness";
-import { calculateLicenseMetric } from "./license";
+import { fetchRepoInfo } from "./infoRepo.js";
+import { calculateRampUpMetric } from "./rampUP.js";
+import { calculateCorrectnessMetric } from "./correctness.js";
+import { calculateResponsivenessMetric } from "./responsiveness.js";
+import { calculateLicenseMetric } from "./license.js";
 
 function getLatency(startTime: number): number {
   return Number(((performance.now() - startTime) / 1000).toFixed(3));
@@ -81,11 +81,11 @@ export async function calculateMetrics(input: string) {
   }
 }
 
-if (require.main === module) {
-  const input = process.argv[2];
-  if (!input) {
-    console.error("Please provide a URL or zip file as input.");
-    process.exit(1);
-  }
-  calculateMetrics(input);
-}
+// if (require.main === module) {
+//   const input = process.argv[2];
+//   if (!input) {
+//     console.error("Please provide a URL or zip file as input.");
+//     process.exit(1);
+//   }
+//   calculateMetrics(input);
+// }
