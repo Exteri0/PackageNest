@@ -57,6 +57,10 @@ export async function calculateSize(packageId: string, dependency = true): Promi
     const dbPool = getDbPool(); // Connection to RDS
     const visitedPackages = new Set<string>(); // To track processed packages and avoid loops
 
+    if (!process.env.S3_BUCKET_NAME) {
+        throw new Error("S3_BUCKET_NAME is not defined in the environment variables.");
+    }
+
     async function calculate(packageName: string, version: string): Promise<number> {
         const fullPackageId = `${packageName}@${version}`;
         
@@ -72,8 +76,9 @@ export async function calculateSize(packageId: string, dependency = true): Promi
 
         // Fetch package size from S3
         const bucketName = process.env.S3_BUCKET_NAME;
-        if (!bucketName) throw new Error("S3_BUCKET_NAME is not defined in the environment variables.");
-
+        if (!bucketName) {
+             throw new Error("S3_BUCKET_NAME is not defined in the environment variables.");
+        }
         const s3Params = { Bucket: bucketName, Key: `packages/${packageName}/v${version}/package.zip` };
         const s3Object = await s3.headObject(s3Params).promise();
         const packageSize = s3Object.ContentLength || 0;
@@ -88,7 +93,6 @@ export async function calculateSize(packageId: string, dependency = true): Promi
                 totalSize += await calculate(depName, depVersion || 'latest');
             }
         }
-
         // Cache the calculated size in the database
         await setCachedSize(fullPackageId, totalSize);
 

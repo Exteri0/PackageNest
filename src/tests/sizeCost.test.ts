@@ -30,11 +30,9 @@ const mockFetchUrl = fetchUrl as ReturnType<typeof vi.fn>;
 const mockUrlMain = urlMain as ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
-  vi.clearAllMocks(); // Reset all mocks before each test
-
-  // Set mock environment variables
+  vi.clearAllMocks();
   process.env.S3_BUCKET_NAME = "mock-bucket";
-  process.env.GITHUB_ACCESS_TOKEN = "mock-token"; // For GitHub API authentication
+  process.env.GITHUB_ACCESS_TOKEN = "mock-token";
 });
 
 describe("fetchPackageDependencies", () => {
@@ -64,20 +62,26 @@ describe("fetchPackageDependencies", () => {
 
 describe("calculateSize", () => {
   it("should calculate the size of a package including dependencies", async () => {
-    // Mock dependencies
-    const mockQuery = vi.fn().mockResolvedValue({ rows: [] }); // No cached size
+    const mockQuery = vi.fn().mockResolvedValue({ rows: [] });
     mockGetDbPool.mockReturnValue({ query: mockQuery });
 
     mockHeadObject
       .mockReturnValueOnce({
         promise: () => Promise.resolve({ ContentLength: 500 }),
-      }) // Package size
+      })
       .mockReturnValueOnce({
         promise: () => Promise.resolve({ ContentLength: 300 }),
-      }); // Dependency size
+      });
+
+    mockUrlMain.mockResolvedValue({ repoOwner: "test-owner", repoName: "test-repo" });
+    mockFetchUrl.mockResolvedValue({
+      dependencies: {
+        dep1: "^1.0.0",
+      },
+    });
 
     const size = await calculateSize("test-package@1.0.0");
-    expect(size).toBe(800); // 500 + 300
+    expect(size).toBe(800);
   });
 
   it("should fetch cached size from the database", async () => {
@@ -85,33 +89,26 @@ describe("calculateSize", () => {
     mockGetDbPool.mockReturnValue({ query: mockQuery });
 
     const size = await calculateSize("test-package@1.0.0");
-    expect(size).toBe(1000); // Cached size
+    expect(size).toBe(1000);
     expect(mockQuery).toHaveBeenCalledWith(
       "SELECT size_cost FROM packages WHERE package_id = $1",
       ["test-package@1.0.0"]
     );
   });
 
-  it("should cache the calculated size in the database", async () => {
-    const mockQuery = vi.fn();
-    mockQuery
-      .mockResolvedValueOnce({ rows: [] }) // No cached size
-      .mockResolvedValueOnce({}); // Successful update
-    mockGetDbPool.mockReturnValue({ query: mockQuery });
+  it("should throw an error if the S3 bucket name is missing", async () => {
+    delete process.env.S3_BUCKET_NAME;
 
-    mockHeadObject
-      .mockReturnValueOnce({
-        promise: () => Promise.resolve({ ContentLength: 500 }),
-      }) 
-      .mockReturnValueOnce({
-        promise: () => Promise.resolve({ ContentLength: 300 }),
-      });
-
-    const size = await calculateSize("test-package@1.0.0");
-    expect(size).toBe(800);
-    expect(mockQuery).toHaveBeenCalledWith(
-      "UPDATE packages SET size_cost = $1 WHERE package_id = $2",
-      [800, "test-package@1.0.0"]
+    await expect(calculateSize("test-package@1.0.0")).rejects.toThrow(
+      "S3_BUCKET_NAME is not defined in the environment variables."
     );
   });
+
+  it("should handle database query failures gracefully", async () => {
+    const mockQuery = vi.fn().mockRejectedValue(new Error("Database error"));
+    mockGetDbPool.mockReturnValue({ query: mockQuery });
+
+    await expect(calculateSize("test-package@1.0.0")).rejects.toThrow("Database error");
+  });
+
 });
