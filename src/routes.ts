@@ -1,12 +1,8 @@
 import { Express, Request, Response, NextFunction } from "express";
-import * as DefaultController from "./controllers/Default";
-import { verifyJWT } from "./middleware/verifyJWT";
-import { CustomError } from "/home/shay/a/manjuna0/461/PackageNest/src/utils/types.js";
-import { packageIdCostGET } from "/home/shay/a/manjuna0/461/PackageNest/src/service/DefaultService.js";
-import { AuthenticationToken } from "/home/shay/a/manjuna0/461/PackageNest/src/service/DefaultService.js"
-
-
-
+import * as DefaultController from "./controllers/Default.js";
+import { verifyJWT } from "./middleware/verifyJWT.js";
+import { CustomError } from "./utils/types.js";
+import { packageIdCostGET, AuthenticationToken } from "./service/DefaultService.js";
 
 export default (app: Express) => {
   // POST /packages (PackagesList expects req, res, next, body, offset)

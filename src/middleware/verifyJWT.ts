@@ -1,7 +1,7 @@
 import jwt from "jsonwebtoken";
 import { Request, Response, NextFunction } from "express";
 import { JwtPayload } from "jsonwebtoken";
-import { JWTUser, OpenApiRequest } from "../utils/types";
+import { JWTUser, OpenApiRequest } from "../utils/types.js";
 
 const JWT_SECRET = process.env.JWT_SECRET ?? "defaultSecret";
 

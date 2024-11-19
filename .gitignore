@@ -1,6 +1,7 @@
 # Ignore the personal directory where each one can expirement with his code before pushing
 ignorethis/
 src/config.json
+private_key.pem
 
 # Logs
 logs
@@ -143,3 +144,7 @@ databasereset.sql
 !.env.vault
 src/queries/localDBReset.ts
 src/queries/localDBReset.ts
+deployment
+indiana-sam-windws.pem
+deployment_tips.md
+build_and_deploy.sh

@@ -1,6 +1,6 @@
 const Client = require("pg").Client;
 import { get } from "http";
-import { getDbPool } from "../service/databaseConnection";
+import { getDbPool } from "../service/databaseConnection.js";
 import "dotenv/config";
 
 export async function populateRegistry(): Promise<void> {

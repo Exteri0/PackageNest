@@ -1,10 +1,10 @@
 "use strict";
 
 import { Request, Response, NextFunction, response } from "express";
-import * as utils from "../utils/writer";
-import * as Default from "../service/DefaultService";
-import { calculateMetrics } from "../Metrics/metricExport";
-import { CustomError, OpenApiRequest } from "../utils/types";
+import * as utils from "../utils/writer.js";
+import * as Default from "../service/DefaultService.js";
+import { calculateMetrics } from "../Metrics/metricExport.js";
+import { CustomError, OpenApiRequest } from "../utils/types.js";
 import jwt from "jsonwebtoken";
 
 // Things with an input like offset might cause trouble
@@ -91,7 +91,15 @@ export const PackageCreate = async (
     };
     console.log("xAuthorization token:", xAuthorization.token);
 
-    const response = await Default.packageCreate(body.Content, body.JSProgram, body.URL, body. debloat, body.Name, body.metadata, xAuthorization);
+    const response = await Default.packageCreate(
+      body.Content,
+      body.JSProgram,
+      body.URL,
+      body.debloat,
+      body.Name,
+      body.metadata,
+      xAuthorization
+    );
     console.log("Received response from service:", response);
 
     res.json(response);

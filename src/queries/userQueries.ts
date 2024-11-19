@@ -1,4 +1,4 @@
-import { getDbPool } from "../service/databaseConnection";
+import { getDbPool } from "../service/databaseConnection.js";
 
 // Retrieve a user by ID
 export const getUserById = async (userId: number) => {

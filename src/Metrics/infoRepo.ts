@@ -1,6 +1,6 @@
 // fetch_repo_info.ts
 
-import { urlMain } from "./urlHandler";
+import { urlMain } from "./urlHandler.js";
 import * as fs from "fs";
 import * as path from "path";
 import * as unzipper from "unzipper";

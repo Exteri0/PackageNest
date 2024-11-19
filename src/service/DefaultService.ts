@@ -4,25 +4,35 @@ import { Request, Response, NextFunction, response } from "express";
 import * as https from "https";
 import awsSdk from "aws-sdk";
 import axios from "axios";
-import { executeSqlFile } from "../queries/resetDB";
+import { executeSqlFile } from "../queries/resetDB.js";
 import "dotenv/config";
-import { getDbPool } from "./databaseConnection";
-import * as packageQueries from "../queries/packageQueries";
-import { calculateMetrics } from "../Metrics/metricExport";
-import { calculateSize } from "../service/packageUtils";
-import { CustomError } from "../utils/types";
+import { getDbPool } from "./databaseConnection.js";
+import * as packageQueries from "../queries/packageQueries.js";
+import { calculateMetrics } from "../Metrics/metricExport.js";
+import { calculateSize } from "../service/packageUtils.js";
+import { CustomError } from "../utils/types.js";
+
 import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
 import {
   createUser,
   getAllUsers,
   getUserByUsername,
-} from "../queries/userQueries";
-import { v5 as uuidv5 } from 'uuid';
-import { getPackageInfoZipFile, getPackageInfoRepo } from "../utils/retrievePackageJson";
+} from "../queries/userQueries.js";
+import { v5 as uuidv5 } from "uuid";
+import {
+  getPackageInfoZipFile,
+  getPackageInfoRepo,
+} from "../utils/retrievePackageJson.js";
 
 const bucketName = process.env.S3_BUCKET_NAME;
-const s3 = new awsSdk.S3();
+const s3 = new awsSdk.S3(
+  {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_ACCESS_KEY_SECRET,
+    region: 'us-east-2', // Replace with your region
+  }
+);
 
 /**
  * Types
@@ -294,7 +304,7 @@ export async function packageByRegExGet(
     }
 
     // Prepare the result list in the specified format
-    const response = result.rows.map((row) => ({
+    const response = result.rows.map((row: any) => ({
       Name: row.name,
       Version: row.version,
       ID: row.package_id,
@@ -327,8 +337,8 @@ export async function packageCreate(
     ID?: string;
     Name?: string;
   },
-  xAuthorization?: AuthenticationToken) {
-  
+  xAuthorization?: AuthenticationToken
+) {
   let packageName: string | undefined = metadata?.Name?.trim();
   let packageVersion: string | undefined = metadata?.Version?.trim();
   let packageId: string | undefined = metadata?.ID?.trim();
@@ -345,14 +355,22 @@ export async function packageCreate(
   }
 
   if ((!URL && !Content) || (URL && Content)) {
-    console.error("Invalid request body: 'Content' or 'URL' (exclusively) is required.");
-    throw new CustomError("Invalid request body. 'Content' or 'URL' (exclusively) is required.", 400);
-  }
-  else {
+    console.error(
+      "Invalid request body: 'Content' or 'URL' (exclusively) is required."
+    );
+    throw new CustomError(
+      "Invalid request body. 'Content' or 'URL' (exclusively) is required.",
+      400
+    );
+  } else {
     if (!packageName && !Name) {
-      console.log("Name is not in neither metadata or body, getting it from the URL or package json.");
+      console.log(
+        "Name is not in neither metadata or body, getting it from the URL or package json."
+      );
       if (URL) {
-        const repoMatch = URL.match(/github\.com\/([^/]+)\/([^/]+)(?:\/blob\/([^/]+)\/(.+))?/);
+        const repoMatch = URL.match(
+          /github\.com\/([^/]+)\/([^/]+)(?:\/blob\/([^/]+)\/(.+))?/
+        );
         if (!repoMatch) throw new CustomError("Invalid GitHub URL format", 400);
         repoOwner = repoMatch[1];
         repoName = repoMatch[2];
@@ -360,37 +378,50 @@ export async function packageCreate(
           const responseInfo = await getPackageInfoRepo(repoOwner, repoName);
           packageName = responseInfo?.name;
           packageVersion = responseInfo?.version;
+        } catch (error: any) {
+          console.error(
+            "Error occurred in retrieving info from package json using URL",
+            error
+          );
+          throw new CustomError(
+            `Failed to retrieve package info from package json using URL`,
+            500
+          );
         }
-        catch (error: any) {
-          console.error("Error occurred in retrieving info from package json using URL", error);
-          throw new CustomError(`Failed to retrieve package info from package json using URL`, 500);
-        }
-      }
-      else if (Content) {
+      } else if (Content) {
         try {
           const responseInfo = await getPackageInfoZipFile(Content);
           packageName = responseInfo.name;
           packageVersion = responseInfo.version;
-        }
-        catch (error: any) {
-          console.error("Error occurred in retrieving info from package json:", error);
-          throw new CustomError(`Failed to retrieve package info from package json`, 500);
+        } catch (error: any) {
+          console.error(
+            "Error occurred in retrieving info from package json:",
+            error
+          );
+          throw new CustomError(
+            `Failed to retrieve package info from package json`,
+            500
+          );
         }
       }
-    }
-    
-    else if (Name) {
-      console.log("name is provided in body, using that instead of metadata, or package json.");
+    } else if (Name) {
+      console.log(
+        "name is provided in body, using that instead of metadata, or package json."
+      );
       packageName = Name.trim();
     }
 
-    const NAMESPACE = "6ba7b810-9dad-11d1-80b4-00c04fd430c8";
+    const ID_NAMESPACE = "6ba7b810-9dad-11d1-80b4-00c04fd430c8";
 
-    if (!packageId || packageId !== uuidv5(`${packageName}-${packageVersion}`, NAMESPACE)) {
-      console.log("packageId is not provided or does not match the UUIDv5 of the packageName and packageVersion, regenerating.");
-      packageId = uuidv5(`${packageName}-${packageVersion}`, NAMESPACE);
+    if (
+      !packageId ||
+      packageId !== uuidv5(`${packageName}-${packageVersion}`, ID_NAMESPACE)
+    ) {
+      console.log(
+        "packageId is not provided or does not match the UUIDv5 of the packageName and packageVersion, regenerating."
+      );
+      packageId = uuidv5(`${packageName}-${packageVersion}`, ID_NAMESPACE);
     }
-
 
     if (!bucketName) {
       console.error(
@@ -410,7 +441,15 @@ export async function packageCreate(
     if (Content && !URL) {
       returnString = Content;
       console.log("Entered packageCreate service function with Content");
-      console.log("Received body:", JSON.stringify({ Content: `${Content}`, URL: `${URL}`, debloat: `${debloatVal}`, JSProgram: `${JSProgram ?? null}` }));
+      console.log(
+        "Received body:",
+        JSON.stringify({
+          Content: `${Content}`,
+          URL: `${URL}`,
+          debloat: `${debloatVal}`,
+          JSProgram: `${JSProgram ?? null}`,
+        })
+      );
 
       const s3Key = `packages/${packageName}/v${packageVersion}/package.zip`;
 
@@ -429,7 +468,14 @@ export async function packageCreate(
       }
     } else if (URL && !Content) {
       console.log("Entered packageCreate service function with URL");
-      console.log("Received body:", JSON.stringify({ URL: `${URL}`, debloat: `${debloatVal}`, JSProgram: `${JSProgram ?? null}` }));
+      console.log(
+        "Received body:",
+        JSON.stringify({
+          URL: `${URL}`,
+          debloat: `${debloatVal}`,
+          JSProgram: `${JSProgram ?? null}`,
+        })
+      );
 
       // RATE
 
@@ -444,7 +490,7 @@ export async function packageCreate(
         const s3Params = {
           Bucket: bucketName,
           Key: s3Key,
-          Body: Buffer.from(contentBuffer, 'base64'),
+          Body: Buffer.from(contentBuffer, "base64"),
           ContentType: "application/zip",
         };
 
@@ -460,18 +506,44 @@ export async function packageCreate(
     }
 
     try {
-    
-      if (!contentBuffer) //no url download, content type is true
-        await packageQueries.insertPackageQuery(packageName, packageVersion ?? "1.0.0", packageId, true);
-      else
-        await packageQueries.insertPackageQuery(packageName, packageVersion ?? "1.0.0", packageId, false);
-    
-      await packageQueries.insertIntoMetadataQuery(packageName, packageVersion ?? "1.0.0", packageId);
-    
       if (!contentBuffer)
-        await packageQueries.insertIntoPackageDataQuery(packageId, true, URL, debloatVal, JSProgram);
+        //no url download, content type is true
+        await packageQueries.insertPackageQuery(
+          packageName,
+          packageVersion ?? "1.0.0",
+          packageId,
+          true
+        );
       else
-        await packageQueries.insertIntoPackageDataQuery(packageId, false, URL, debloatVal, JSProgram);
+        await packageQueries.insertPackageQuery(
+          packageName,
+          packageVersion ?? "1.0.0",
+          packageId,
+          false
+        );
+
+      await packageQueries.insertIntoMetadataQuery(
+        packageName,
+        packageVersion ?? "1.0.0",
+        packageId
+      );
+
+      if (!contentBuffer)
+        await packageQueries.insertIntoPackageDataQuery(
+          packageId,
+          true,
+          URL,
+          debloatVal,
+          JSProgram
+        );
+      else
+        await packageQueries.insertIntoPackageDataQuery(
+          packageId,
+          false,
+          URL,
+          debloatVal,
+          JSProgram
+        );
 
       console.log("Package and metadata, and data registered successfully.");
 
@@ -500,9 +572,9 @@ export async function packageCreate(
 
 async function downloadFile(url: string): Promise<string> {
   const response = await axios.get(url, {
-    responseType: 'arraybuffer'
+    responseType: "arraybuffer",
   });
-   const base64Encoded = Buffer.from(response.data).toString("base64");
+  const base64Encoded = Buffer.from(response.data).toString("base64");
   return base64Encoded;
 }
 
@@ -620,7 +692,7 @@ export async function packageRate(
     };
     resolve(examples['application/json']);
   }); */
-  const testOutput: any = await calculateMetrics("");
+  const testOutput: any = await calculateMetrics("https://github.com/cloudinary/cloudinary_npm");
   let response: PackageRating = {
     GoodPinningPractice: 0,
     CorrectnessLatency: 0,
@@ -642,7 +714,7 @@ export async function packageRate(
   response.BusFactor = testOutput.BusFactor;
   response.Correctness = testOutput.Correctness;
   response.GoodPinningPractice = testOutput.GoodPinningPractice;
-  response.LicenseScore = testOutput.LicenseScore;
+  response.LicenseScore = testOutput.License;
   response.NetScore = testOutput.NetScore;
   response.PullRequest = testOutput.PullRequest;
   response.RampUp = testOutput.RampUp;
@@ -650,12 +722,11 @@ export async function packageRate(
   response.BusFactorLatency = testOutput.BusFactor_Latency;
   response.CorrectnessLatency = testOutput.Correctness_Latency;
   response.GoodPinningPracticeLatency = testOutput.GoodPinningPracticeLatency;
-  response.LicenseScoreLatency = testOutput.LicenseScore_Latency;
+  response.LicenseScoreLatency = testOutput.License_Latency;
   response.NetScoreLatency = testOutput.NetScore_Latency;
-  response.PullRequestLatency = testOutput.PullRequest_Latency;
+  response.PullRequestLatency = testOutput.PullRequestLatency;
   response.RampUpLatency = testOutput.RampUp_Latency;
-  response.ResponsiveMaintainerLatency =
-    testOutput.ResponsiveMaintainer_Latency;
+  response.ResponsiveMaintainerLatency = testOutput.ResponsiveMaintainer_Latency;
   return Promise.resolve(response);
 }
 

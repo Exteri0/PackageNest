@@ -1,7 +1,8 @@
-import { Pool } from "pg";
+import pkg from "pg"; // Import the CommonJS module as a default export
+const { Pool } = pkg; // Destructure Pool from the default import
 import "dotenv/config";
 
-let pool: Pool | undefined;
+let pool: any = null;
 
 export function getDbPool() {
   if (!pool) {
@@ -13,11 +14,9 @@ export function getDbPool() {
       password: process.env.RDS_PASSWORD,
       port: process.env.RDS_PORT ? parseInt(process.env.RDS_PORT, 10) : 5432,
       ssl: { rejectUnauthorized: false },
-      // Alternatively, if SSL is not required:
-      // ssl: false,
     });
 
-    pool.on("error", (err) => {
+    pool.on("error", (err: any) => {
       console.error("Unexpected error on idle client", err);
       process.exit(-1);
     });

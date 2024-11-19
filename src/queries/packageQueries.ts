@@ -63,40 +63,55 @@ export const insertPackage = async (
 
 // Retrieve a package by name
 export const getPackageByName = async (name: string) => {
-    const query = `SELECT * FROM public."packages" WHERE name = $1;`;
-    try {
-      const res = await getDbPool().query(query, [name]);
-      return res.rows[0];
-    } catch (error) {
-      console.error("Error fetching package by name:", error);
-      throw error;
-    }
-  };
-  
+  const query = `SELECT * FROM public."packages" WHERE name = $1;`;
+  try {
+    const res = await getDbPool().query(query, [name]);
+    return res.rows[0];
+  } catch (error) {
+    console.error("Error fetching package by name:", error);
+    throw error;
+  }
+};
+
 // Package version update
 export const updatePackageVersion = async (name: string, version: string) => {
-    const query = `UPDATE public."packages" SET version = $1, updated_at = NOW() WHERE id = $2;`;
-    try {
-      await getDbPool().query(query, [version, name]);
-    } catch (error) {
-      console.error("Error updating package version:", error);
-      throw error;
-    }
+  const query = `UPDATE public."packages" SET version = $1, updated_at = NOW() WHERE id = $2;`;
+  try {
+    await getDbPool().query(query, [version, name]);
+  } catch (error) {
+    console.error("Error updating package version:", error);
+    throw error;
+  }
 };
 
-
-export const insertPackageRating = async (packageId: number, busFactor: number, correctness: number, rampUp: number, licenseScore: number) => {
-    const query = `INSERT INTO public."package_ratings" (package_id, bus_factor, correctness, ramp_up, license_score)
+export const insertPackageRating = async (
+  packageId: number,
+  busFactor: number,
+  correctness: number,
+  rampUp: number,
+  licenseScore: number
+) => {
+  const query = `INSERT INTO public."package_ratings" (package_id, bus_factor, correctness, ramp_up, license_score)
                    VALUES ($1, $2, $3, $4, $5);`;
-    try {
-        await getDbPool().query(query,[packageId, busFactor, correctness, rampUp, licenseScore]);
-
-    } catch (error) {
-        console.error("Error inserting package Rating intoo packages: ", error);
-    }
+  try {
+    await getDbPool().query(query, [
+      packageId,
+      busFactor,
+      correctness,
+      rampUp,
+      licenseScore,
+    ]);
+  } catch (error) {
+    console.error("Error inserting package Rating intoo packages: ", error);
+  }
 };
 
-export const insertPackageQuery = async (packageName: string | undefined, packageVersion: string, packageId: string, contentType: Boolean) => {
+export const insertPackageQuery = async (
+  packageName: string | undefined,
+  packageVersion: string,
+  packageId: string,
+  contentType: Boolean
+) => {
   const query = `
       INSERT INTO public.packages (name, version, package_id, content_type)
       VALUES ($1, $2, $3, $4)
@@ -104,14 +119,23 @@ export const insertPackageQuery = async (packageName: string | undefined, packag
       RETURNING package_id;
     `;
   try {
-    await getDbPool().query(query, [packageName, packageVersion, packageId, contentType]);
+    await getDbPool().query(query, [
+      packageName,
+      packageVersion,
+      packageId,
+      contentType,
+    ]);
   } catch (error: any) {
     console.error(`Error inserting package query into packages: ${error}`);
     throw error;
   }
 };
 
-export const insertIntoMetadataQuery = async (packageName: string | undefined, packageVersion: string, packageId: string) => {
+export const insertIntoMetadataQuery = async (
+  packageName: string | undefined,
+  packageVersion: string,
+  packageId: string
+) => {
   const query = `
       INSERT INTO public.package_metadata (name, version, package_id )
       VALUES ($1, $2, $3);
@@ -124,21 +148,34 @@ export const insertIntoMetadataQuery = async (packageName: string | undefined, p
   }
 };
 
-export const insertIntoPackageDataQuery = async (packageId: string, contentType: boolean, packageURL: string | undefined, debloat: boolean, jsProgram: string | undefined) => {
+export const insertIntoPackageDataQuery = async (
+  packageId: string,
+  contentType: boolean,
+  packageURL: string | undefined,
+  debloat: boolean,
+  jsProgram: string | undefined
+) => {
   const query = `
       INSERT INTO public.package_data (package_id, content_type, url, debloat, js_program)
       VALUES ($1, $2, $3, $4, $5);
     `;
   try {
-    await getDbPool().query(query, [packageId, contentType, packageURL, debloat, jsProgram]);
-  }
-  catch (error: any) {
+    await getDbPool().query(query, [
+      packageId,
+      contentType,
+      packageURL,
+      debloat,
+      jsProgram,
+    ]);
+  } catch (error: any) {
     console.error(`Error inserting package data into packages: ${error}`);
     throw error;
   }
 };
 
-export const packageExistsQuery = async (packageId: string): Promise<boolean> => {
+export const packageExistsQuery = async (
+  packageId: string
+): Promise<boolean> => {
   const query = `SELECT EXISTS(SELECT 1 FROM public."packages" WHERE package_id = $1);`;
   try {
     const queryRes = await getDbPool().query(query, [packageId]);
@@ -147,5 +184,4 @@ export const packageExistsQuery = async (packageId: string): Promise<boolean> =>
     console.error("Error checking if package exists:", error);
     throw error;
   }
-}
-
+};

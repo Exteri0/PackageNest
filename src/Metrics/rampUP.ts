@@ -1,47 +1,97 @@
 // rampup_metric.ts
 
-import * as git from "isomorphic-git";
-import http from "isomorphic-git/http/node";
+import axios from "axios";
+import AdmZip from "adm-zip";
+import * as fs from "fs/promises";
+import os from "os";
 import * as path from "path";
-import { s3fs } from "./customS3Fs"; // Import the s3fs instance
-import { promisify } from "util";
+import { performance } from "perf_hooks";
 
-const defaultOwner = "cloudinary";
-const defaultName = "cloudinary_npm";
-
+/**
+ * Utility function to calculate latency in seconds.
+ * @param startTime - The start time in milliseconds.
+ * @returns Latency in seconds, rounded to three decimal places.
+ */
 function getLatency(startTime: number): number {
-  return Number(((Date.now() - startTime) / 1000).toFixed(3));
+  return Number(((performance.now() - startTime) / 1000).toFixed(3));
 }
 
+/**
+ * Downloads the repository as a zip archive from GitHub.
+ * @param owner - Repository owner.
+ * @param repo - Repository name.
+ * @returns The path to the downloaded zip file.
+ */
+async function downloadRepoZip(owner: string, repo: string): Promise<string> {
+  const zipPath = path.join(os.tmpdir(), `${owner}-${repo}.zip`);
+  const downloadUrl = `https://api.github.com/repos/${owner}/${repo}/zipball`;
+
+  console.log(`Downloading repository zip from ${downloadUrl}`);
+
+  const response = await axios.get(downloadUrl, {
+    responseType: "arraybuffer",
+    headers: {
+      Accept: "application/vnd.github.v3+json",
+      Authorization: `token ${process.env.MY_TOKEN}`, // Ensure you have a valid token
+      "User-Agent": "ramp-up-metric-calculator",
+    },
+  });
+
+  await fs.writeFile(zipPath, response.data);
+  console.log(`Repository zip downloaded to ${zipPath}`);
+  return zipPath;
+}
+
+/**
+ * Extracts the downloaded zip archive to a temporary directory.
+ * @param zipPath - Path to the zip archive.
+ * @returns The path to the extracted repository directory.
+ */
+async function extractRepoZip(zipPath: string): Promise<string> {
+  const extractDir = path.join(os.tmpdir(), `repo-${Date.now()}`);
+  await fs.mkdir(extractDir, { recursive: true });
+
+  const zip = new AdmZip(zipPath);
+  zip.extractAllTo(extractDir, true);
+  console.log(`Repository extracted to ${extractDir}`);
+
+  // GitHub adds a prefix to the extracted directory; find it
+  const extractedContents = await fs.readdir(extractDir);
+  if (extractedContents.length !== 1) {
+    throw new Error("Unexpected zip archive structure.");
+  }
+
+  const repoDir = path.join(extractDir, extractedContents[0]);
+  return repoDir;
+}
+
+/**
+ * Calculates the ramp-up metric for a given repository.
+ * @param owner - Repository owner.
+ * @param name - Repository name.
+ * @returns An object containing the ramp-up score and latency.
+ */
+
 export async function calculateRampUpMetric(
-  owner: string = defaultOwner,
-  name: string = defaultName
+  owner: string,
+  name: string
 ): Promise<{ RampUp: number; RampUp_Latency: number }> {
   console.log(`Calculating ramp-up metric for ${owner}/${name}`);
-  const startTime = Date.now();
+  const startTime = performance.now();
 
-  const repoDir = `/${owner}/${name}`;
+  let zipPath = "";
+  let repoDir = "";
 
   try {
-    // Clone the repository using isomorphic-git with custom fs
-    console.log(`Cloning repository https://github.com/${owner}/${name}.git`);
-    await git.clone({
-      fs: s3fs,
-      http,
-      dir: repoDir,
-      url: `https://github.com/${owner}/${name}.git`,
-      singleBranch: true,
-      depth: 1,
-    });
-    console.log(`Successfully cloned ${owner}/${name}`);
+    // Step 1: Download the repository as a zip archive
+    zipPath = await downloadRepoZip(owner, name);
 
-    // Proceed with analysis using s3fs
-    const rampUpScore = await analyzeRepoStatic(repoDir, s3fs);
+    // Step 2: Extract the zip archive
+    repoDir = await extractRepoZip(zipPath);
+
+    // Step 3: Perform analysis
+    const rampUpScore = await analyzeRepoStatic(repoDir);
     console.log(`Ramp-up score calculated: ${rampUpScore}`);
-
-    // Clean up the repository from S3
-    await s3fs.rmdir(repoDir);
-    console.log(`Cleaned up repository ${repoDir} from S3`);
 
     return {
       RampUp: Number(rampUpScore.toFixed(3)),
@@ -49,43 +99,38 @@ export async function calculateRampUpMetric(
     };
   } catch (error) {
     console.error(`Error calculating ramp-up metric:`, error);
-    return { RampUp: 0, RampUp_Latency: getLatency(startTime) };
+    return { RampUp: -1, RampUp_Latency: 0 };
+  } finally {
+    // Step 5: Clean up temporary files
+    try {
+      if (zipPath) {
+        await fs.unlink(zipPath);
+        console.log(`Deleted zip file at ${zipPath}`);
+      }
+      if (repoDir) {
+        await fs.rm(repoDir, { recursive: true, force: true });
+        console.log(`Deleted repository directory at ${repoDir}`);
+      }
+    } catch (cleanupError) {
+      console.error(`Error during cleanup:`, cleanupError);
+    }
   }
 }
 
-async function analyzeRepoStatic(repoDir: string, fs: any): Promise<number> {
+/**
+ * Analyzes the repository to calculate the ramp-up score.
+ * @param repoDir - Path to the extracted repository directory.
+ * @returns The ramp-up score.
+ */
+async function analyzeRepoStatic(repoDir: string): Promise<number> {
   const weights = {
     documentation: 0.4,
     examples: 0.3,
     complexity: 0.3,
   };
   try {
-    // List branches
-    const branches = await git.listBranches({
-      fs,
-      dir: repoDir,
-      remote: "origin",
-    });
-    console.log(`Remote branches found: ${branches.join(", ")}`);
-
-    // Use the default branch ('main' or 'master') or the first branch
-    const defaultBranch =
-      branches.find((b: string) => ["main", "master"].includes(b)) ||
-      branches[0];
-    if (!defaultBranch) {
-      throw new Error("No branches found");
-    }
-    console.log(`Using branch: ${defaultBranch}`);
-
-    // Checkout the default branch
-    await git.checkout({
-      fs,
-      dir: repoDir,
-      ref: defaultBranch,
-    });
-
     // Get all files in the repository
-    const allFiles = await getAllFilesStatic(repoDir, fs);
+    const allFiles = await getAllFilesStatic(repoDir);
     console.log(`Total files found: ${allFiles.length}`);
 
     // Analyze documentation files
@@ -119,18 +164,19 @@ async function analyzeRepoStatic(repoDir: string, fs: any): Promise<number> {
   }
 }
 
-async function getAllFilesStatic(
-  dir: string,
-  fs: any
-): Promise<Array<{ path: string }>> {
+/**
+ * Recursively retrieves all file paths in the repository.
+ * @param dir - Directory path.
+ * @returns An array of file objects with their paths.
+ */
+async function getAllFilesStatic(dir: string): Promise<Array<{ path: string }>> {
   let allFiles: Array<{ path: string }> = [];
   try {
-    const dirEntries = await fs.readdir(dir);
+    const dirEntries = await fs.readdir(dir, { withFileTypes: true });
     for (const entry of dirEntries) {
-      const fullPath = path.posix.join(dir, entry);
-      const stats = await fs.stat(fullPath);
-      if (stats.isDirectory()) {
-        const subFiles = await getAllFilesStatic(fullPath, fs);
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        const subFiles = await getAllFilesStatic(fullPath);
         allFiles = allFiles.concat(subFiles);
       } else {
         allFiles.push({ path: fullPath });
@@ -142,6 +188,11 @@ async function getAllFilesStatic(
   return allFiles;
 }
 
+/**
+ * Determines if a file is a documentation file.
+ * @param filePath - File path.
+ * @returns True if it's a documentation file, false otherwise.
+ */
 function isDocumentationFile(filePath: string): boolean {
   const docFilePatterns = [
     /README/i,
@@ -155,6 +206,11 @@ function isDocumentationFile(filePath: string): boolean {
   return docFilePatterns.some((pattern) => pattern.test(filePath));
 }
 
+/**
+ * Determines if a file is an example file.
+ * @param filePath - File path.
+ * @returns True if it's an example file, false otherwise.
+ */
 function isExampleFile(filePath: string): boolean {
   const exampleFilePatterns = [
     /example/i,
@@ -169,6 +225,11 @@ function isExampleFile(filePath: string): boolean {
   return exampleFilePatterns.some((pattern) => pattern.test(filePath));
 }
 
+/**
+ * Analyzes code complexity based on the number of code files.
+ * @param allFiles - Array of all file objects.
+ * @returns A complexity score between 0 and 1.
+ */
 async function analyzeComplexityStatic(
   allFiles: Array<{ path: string }>
 ): Promise<number> {
@@ -180,12 +241,17 @@ async function analyzeComplexityStatic(
   return 1 - Math.min(codeFiles.length / 1000, 1);
 }
 
+/**
+ * Checks if the repository has a good project structure.
+ * @param allFiles - Array of all file objects.
+ * @returns True if the structure is good, false otherwise.
+ */
 async function hasGoodStructure(
   allFiles: Array<{ path: string }>
 ): Promise<boolean> {
   const importantDirs = ["src", "lib", "test", "docs", "examples"];
   const filePaths = allFiles.map((file) => file.path.toLowerCase());
   return importantDirs.every((dir) =>
-    filePaths.some((filePath) => filePath.startsWith(`/${dir}/`))
+    filePaths.some((filePath) => filePath.includes(`/${dir}/`))
   );
 }

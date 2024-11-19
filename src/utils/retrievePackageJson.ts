@@ -2,6 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import * as zlib from "zlib";
 import * as unzipper from "unzipper";
+import * as types from "../utils/types.js";
 import { Octokit } from "@octokit/rest";
 import "dotenv/config";
 
@@ -84,5 +85,66 @@ export async function getPackageInfoRepo(owner: string, repo: string) {
     throw new Error(
       `Failed to retrieve package.json from GitHub: ${error.message}`
     );
+  }
+}
+
+export async function getPackageJson(owner: string, repo: string): Promise<types.PackageJsonResult | null> {
+  const GITHUB_TOKEN = process.env.GITHUB_TOKEN || process.env.MY_TOKEN || "";
+  const octokit = new Octokit({
+    auth: GITHUB_TOKEN,
+  });
+
+  try {
+    const response = await octokit.repos.getContent({
+      owner,
+      repo,
+      path: "package.json",
+    });
+
+    // If the response is an array, it means the path is a directory
+    if (Array.isArray(response.data)) {
+      console.warn("package.json is a directory or not found.");
+      return null;
+    }
+
+    if ("content" in response.data && response.data.content) {
+      const packageJsonContent = Buffer.from(
+        response.data.content,
+        "base64"
+      ).toString();
+      const packageData: types.PackageJson = JSON.parse(packageJsonContent);
+
+      const { name, version, dependencies, devDependencies, peerDependencies, optionalDependencies } = packageData;
+
+      console.log(`Package Name: ${name}`);
+      console.log(`Package Version: ${version}`);
+
+      // Merge all dependency types
+      const allDependencies: Record<string, string> = {
+        ...(dependencies || {}),
+        ...(devDependencies || {}),
+        ...(peerDependencies || {}),
+        ...(optionalDependencies || {}),
+      };
+
+      return { name, version, dependencies: allDependencies };
+    } else {
+      console.warn("Content is not available in package.json.");
+      return null;
+    }
+  } catch (error: any) {
+    // Enhanced error logging
+    console.error("Error fetching package.json:", error.message);
+
+    if (error.status === 404) {
+      console.error("package.json not found in the repository.");
+    } else if (error.status === 403) {
+      console.error("Access forbidden. Check your GitHub token permissions.");
+    } else {
+      console.error("GitHub API response error:", error.status);
+      console.error("GitHub API response data:", error.response?.data);
+    }
+
+    return null; // Return null instead of throwing to allow graceful handling
   }
 }
