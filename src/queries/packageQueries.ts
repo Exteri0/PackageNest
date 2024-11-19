@@ -1,6 +1,7 @@
-import { getDbPool } from "../service/databaseConnection.js";
-import { Package, PackageQuery } from "../service/DefaultService.js";
-import { CustomError } from "../utils/types.js";
+import { String } from "aws-sdk/clients/batch";
+import { getDbPool } from "../service/databaseConnection";
+import { Package, PackageQuery } from "../service/DefaultService";
+import { CustomError } from "../utils/types";
 
 export async function getPackages(
   conditions: string[],
@@ -28,7 +29,8 @@ export async function getPackages(
 }
 
 // Retrieve a package by ID
-const getPackageById = async (packageId: number) => {
+// needs to be updated to retrieve dependencies as well (a list of dependency package ids)
+export const getPackageById = async (packageId: string) => {
   const query = `SELECT * FROM public."packages" WHERE id = $1`;
   try {
     const res = await getDbPool().query(query, [packageId]);

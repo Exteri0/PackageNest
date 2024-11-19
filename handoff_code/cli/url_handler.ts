@@ -9,7 +9,7 @@ function handle_npm_url(cli_url: string) {
   return "https://registry.npmjs.org/" + pkg_name;
 }
 
-async function fetchUrl(url: string): Promise<any> {
+export async function fetchUrl(url: string): Promise<any> {
   const response = await axios.get(url);
   return response.data;
 }
@@ -38,7 +38,7 @@ function get_repoowner_reponame(url: string) {
 
 // main function to fetch the url
 
-export async function url_main(url: string) {
+ async function url_main(url: string) {
   if (url.includes("npmjs.com")) {
     const endpoint_url = handle_npm_url(url);
     const data = await fetchUrl(endpoint_url);
