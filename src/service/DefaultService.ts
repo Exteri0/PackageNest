@@ -11,7 +11,7 @@ import * as packageQueries from "../queries/packageQueries.js";
 import { calculateMetrics } from "../Metrics/metricExport.js";
 import { calculateSize } from "../service/packageUtils.js";
 import { CustomError, PackageCostDetail } from "../utils/types.js";
-
+import * as crypto from "crypto";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
 import {
@@ -19,10 +19,11 @@ import {
   getAllUsers,
   getUserByUsername,
 } from "../queries/userQueries.js";
-import { v5 as uuidv5 } from "uuid";
 import {
   getPackageInfoZipFile,
   getPackageInfoRepo,
+  downloadFile,
+  convertTarballToZipBuffer
 } from "../utils/retrievePackageJson.js";
 
 const bucketName = process.env.S3_BUCKET_NAME;
@@ -319,18 +320,28 @@ export async function packageByRegExGet(
 }
 
 /**
- * (BASELINE)
- * Upload or Ingest a new package.
- *
- * @param body Package
- * @param xAuthorization AuthenticationToken
- * @returns Promise<Package>
+ * Generates a unique numerical ID based on package name and version.
+ * The ID is stored as a string.
+ * @param {string} name - Package name
+ * @param {string} version - Package version in "x.y.z" format
+ * @returns {string} - Unique ID as a string
  */
+function generateUniqueId(name: string, version: string): string {
+  // Create a SHA-256 hash of the name and version
+  const hash = crypto.createHash("sha256").update(`${name}@${version}`).digest("hex");
+
+  // Convert the first 12 characters of the hash to a numerical string
+  const numericId = BigInt("0x" + hash.slice(0, 12)).toString();
+
+  return numericId;
+}
+
 export async function packageCreate(
   Content?: string,
   URL?: string,
   debloat?: boolean,
-  JSProgram?: string
+  JSProgram?: string,
+  customName?: string // Added customName parameter
 ) {
   // Initialize variables to hold package information
   let packageName: string | undefined = undefined;
@@ -338,15 +349,11 @@ export async function packageCreate(
   let packageId: string | undefined = undefined;
   let contentBuffer: Buffer | undefined = undefined; // For holding binary data
   let returnString: string | undefined = undefined;
-  let repoOwner: string | undefined = undefined;
-  let repoName: string | undefined = undefined;
   let debloatVal: boolean = debloat ?? false;
 
   // Check that either 'Content' or 'URL' is provided, but not both or neither
   if ((!URL && !Content) || (URL && Content)) {
-    console.error(
-      "Invalid request body: 'Content' or 'URL' (exclusively) is required."
-    );
+    console.error("Invalid request body: 'Content' or 'URL' (exclusively) is required.");
     throw new CustomError(
       "Invalid request body. 'Content' or 'URL' (exclusively) is required.",
       400
@@ -355,30 +362,38 @@ export async function packageCreate(
     // If 'URL' is provided
     if (URL) {
       console.log("Processing package creation with URL");
-      // Extract the repository owner and name from the GitHub URL
-      const repoMatch = URL.match(
-        /github\.com\/([^/]+)\/([^/]+)(?:\/blob\/([^/]+)\/(.+))?/
-      );
-      if (!repoMatch) throw new CustomError("Invalid GitHub URL format", 400);
-      repoOwner = repoMatch[1];
-      repoName = repoMatch[2];
-      console.log(`Extracted repoOwner: ${repoOwner}, repoName: ${repoName}`);
 
       try {
-        // Retrieve package information from the repository's package.json
-        const responseInfo = await getPackageInfoRepo(repoOwner, repoName);
-        packageName = responseInfo?.name;
-        packageVersion = responseInfo?.version || "1.0.0";
-        console.log(
-          `Retrieved packageName: ${packageName}, packageVersion: ${packageVersion}`
-        );
+        if (URL.includes("github.com")) {
+          // Extract repository owner and name from the GitHub URL
+          const repoMatch = URL.match(/github\.com\/([^/]+)\/([^/]+)(?:\/blob\/[^/]+\/.+)?$/);
+          if (!repoMatch) throw new CustomError("Invalid GitHub URL format", 400);
+          const owner = repoMatch[1];
+          const repo = repoMatch[2];
+
+          // Retrieve package information from the repository's package.json
+          const packageInfo = await getPackageInfoRepo(owner, repo);
+          packageName = packageInfo.name;
+          packageVersion = packageInfo.version || "1.0.0";
+          console.log(`Retrieved packageName: ${packageName}, packageVersion: ${packageVersion}`);
+        } else if (URL.includes("npmjs.com")) {
+          // Extract package name from npmjs.com URL
+          const packageNameMatch = URL.match(/npmjs\.com\/package\/([^/]+)/);
+          if (!packageNameMatch) throw new CustomError("Invalid npmjs.com URL format", 400);
+          const packageNameFromURL = packageNameMatch[1];
+
+          // Assuming latest version; alternatively, allow specifying version
+          const packageInfo = await getPackageInfoRepo(packageNameFromURL, ""); // Adjust if necessary
+          packageName = packageInfo.name;
+          packageVersion = packageInfo.version || "1.0.0";
+          console.log(`Retrieved packageName: ${packageName}, packageVersion: ${packageVersion}`);
+        } else {
+          throw new CustomError("Unsupported URL format. Please provide a GitHub or npmjs.com URL.", 400);
+        }
       } catch (error: any) {
-        console.error(
-          "Error occurred in retrieving info from package.json using URL",
-          error
-        );
+        console.error("Error occurred in retrieving info from package.json using URL", error);
         throw new CustomError(
-          `Failed to retrieve package info from package.json using URL`,
+          `Failed to retrieve package info from package.json using URL: ${error.message}`,
           500
         );
       }
@@ -389,33 +404,33 @@ export async function packageCreate(
       try {
         // Retrieve package information from the provided zip file content
         const responseInfo = await getPackageInfoZipFile(Content);
-        packageName = responseInfo.name;
+        packageName = customName || responseInfo.name; // Use customName if provided
         packageVersion = responseInfo.version || "1.0.0";
-        console.log(
-          `Retrieved packageName: ${packageName}, packageVersion: ${packageVersion}`
-        );
+        console.log(`Retrieved packageName: ${packageName}, packageVersion: ${packageVersion}`);
       } catch (error: any) {
-        console.error(
-          "Error occurred in retrieving info from package.json:",
-          error
-        );
-        throw new CustomError(
-          `Failed to retrieve package info from package.json`,
-          500
-        );
+        console.error("Error occurred in retrieving info from package.json:", error);
+        throw new CustomError(`Failed to retrieve package info from package.json`, 500);
       }
     }
 
-    // Generate a unique package ID using UUID version 5
-    const ID_NAMESPACE = "6ba7b810-9dad-11d1-80b4-00c04fd430c8";
-    packageId = uuidv5(`${packageName}-${packageVersion}`, ID_NAMESPACE);
+    if (!packageName) {
+      console.error("Package name is missing.");
+      throw new CustomError("Package name is missing.", 400);
+    }
+
+    // Validate package version format "x.y.z"
+    if (!/^\d+\.\d+\.\d+$/.test(packageVersion || "")) {
+      console.error("Package version is missing or invalid.");
+      throw new CustomError("Package version is missing or invalid.", 400);
+    }
+
+    // Generate a unique numerical package ID based on name and version
+    packageId = generateUniqueId(packageName, packageVersion as string);
     console.log(`Generated packageId: ${packageId}`);
 
     // Ensure that the S3 bucket name is defined
     if (!bucketName) {
-      console.error(
-        "S3_BUCKET_NAME is not defined in the environment variables."
-      );
+      console.error("S3_BUCKET_NAME is not defined in the environment variables.");
       throw new CustomError(
         "S3_BUCKET_NAME is not defined in the environment variables.",
         500
@@ -437,34 +452,36 @@ export async function packageCreate(
           Content: `${Content}`,
           debloat: `${debloatVal}`,
           JSProgram: `${JSProgram ?? null}`,
+          customName: `${customName ?? null}`,
         })
       );
 
-      // Decode the base64 encoded zip file to a Buffer
-      contentBuffer = Buffer.from(Content, "base64");
-      returnString = Content; // Keep the original base64 string for the response
-
-      // Define the S3 key (path) for storing the package
-      const s3Key = `packages/${packageName}/v${packageVersion}/package.zip`;
-
-      // Prepare parameters for uploading to S3
-      const s3Params = {
-        Bucket: bucketName,
-        Key: s3Key,
-        Body: contentBuffer, // Upload the decoded zip file
-        ContentType: "application/zip",
-      };
       try {
+        // Decode the base64 encoded zip file to a Buffer
+        contentBuffer = Buffer.from(Content, "base64");
+        returnString = Content; // Keep the original base64 string for the response
+
+        // Define the S3 key (path) for storing the package
+        const s3Key = `packages/${packageName}/v${packageVersion}/package.zip`;
+
+        // Prepare parameters for uploading to S3
+        const s3Params = {
+          Bucket: bucketName,
+          Key: s3Key,
+          Body: contentBuffer, // Upload the decoded zip file
+          ContentType: "application/zip",
+        };
+
         console.log("Uploading package to S3 with key:", s3Key);
         // Upload the package content to S3
         await s3.putObject(s3Params).promise();
         console.log("Package uploaded to S3 successfully.");
-      } catch (error) {
-        console.error("Error occurred in packageCreate:", error);
-        throw new CustomError(`Failed to upload content`, 500);
+      } catch (error: any) {
+        console.error("Error occurred in packageCreate (S3 Upload):", error);
+        throw new CustomError(`Failed to upload content to S3`, 500);
       }
     }
-    // If 'URL' is provided (downloading from GitHub)
+    // If 'URL' is provided (downloading from GitHub or npmjs.com)
     else if (URL && !Content) {
       console.log("Entered packageCreate service function with URL");
       console.log(
@@ -476,18 +493,48 @@ export async function packageCreate(
         })
       );
 
-      // Placeholder for RATE functionality to be implemented later
-      // RATE
-
-      // Construct the API URL to download the repository as a zipball
-      const apiUrl = `https://api.github.com/repos/${repoOwner}/${repoName}/zipball`;
+      // Define variables for S3 upload
+      let downloadBuffer: Buffer;
+      let zipBuffer: Buffer;
 
       try {
-        console.log(`Downloading file from URL: ${apiUrl}`);
-        // Download the repository zip file and get its content as a Buffer
-        contentBuffer = await downloadFile(apiUrl);
+        if (URL.includes("github.com")) {
+          // Extract repo owner and name
+          const repoMatch = URL.match(/github\.com\/([^/]+)\/([^/]+)(?:\/blob\/[^/]+\/.+)?$/);
+          if (!repoMatch) throw new CustomError("Invalid GitHub URL format", 400);
+          const owner = repoMatch[1];
+          const repo = repoMatch[2];
+          const apiUrl = `https://api.github.com/repos/${owner}/${repo}/zipball`;
+
+          console.log(`Downloading ZIP from GitHub: ${apiUrl}`);
+          // Download the repository zip file
+          downloadBuffer = await downloadFile(apiUrl);
+          zipBuffer = downloadBuffer; // GitHub provides ZIP directly
+        } else if (URL.includes("npmjs.com")) {
+          // Extract package name from npmjs.com URL
+          const packageNameMatch = URL.match(/npmjs\.com\/package\/([^/]+)/);
+          if (!packageNameMatch) throw new CustomError("Invalid npmjs.com URL format", 400);
+          const packageNameFromURL = packageNameMatch[1];
+
+          // Fetch package metadata from npm registry
+          const registryUrl = `https://registry.npmjs.org/${packageNameFromURL}`;
+          const registryResponse = await axios.get(registryUrl);
+          const latestVersion = registryResponse.data["dist-tags"].latest;
+          const tarballUrl = registryResponse.data.versions[latestVersion].dist.tarball;
+
+          console.log(`Downloading tarball from npm registry: ${tarballUrl}`);
+          // Download the tarball
+          const tarballBuffer = await downloadFile(tarballUrl);
+
+          console.log("Converting tarball to ZIP");
+          // Convert tarball to ZIP
+          zipBuffer = await convertTarballToZipBuffer(tarballBuffer);
+        } else {
+          throw new CustomError("Unsupported URL format. Please provide a GitHub or npmjs.com URL.", 400);
+        }
+
         // Convert the Buffer to a base64 encoded string for the response
-        returnString = contentBuffer.toString("base64");
+        returnString = zipBuffer.toString("base64");
 
         // Define the S3 key (path) for storing the package
         const s3Key = `packages/${packageName}/v${packageVersion}/package.zip`;
@@ -496,7 +543,7 @@ export async function packageCreate(
         const s3Params = {
           Bucket: bucketName,
           Key: s3Key,
-          Body: contentBuffer, // Upload the zip file content directly
+          Body: zipBuffer, // Upload the zip file content directly
           ContentType: "application/zip",
         };
 
@@ -504,10 +551,10 @@ export async function packageCreate(
         // Upload the package content to S3
         await s3.putObject(s3Params).promise();
         console.log("Package uploaded to S3 successfully.");
-      } catch (error) {
-        console.error("Error downloading or processing file from URL:", error);
+      } catch (error: any) {
+        console.error("Error downloading or uploading file from URL:", error);
         throw new CustomError(
-          `Failed to download or upload package from URL`,
+          `Failed to download or upload package from URL: ${error.message}`,
           500
         );
       }
@@ -562,27 +609,14 @@ export async function packageCreate(
 
       // Return the response object
       return response;
-    } catch (error) {
-      console.error("Error occurred in packageCreate:", error);
+    } catch (error: any) {
+      console.error("Error occurred in packageCreate (Database Insertion):", error);
       throw new CustomError(
-        `Failed to upload package or insert into database`,
+        `Failed to upload package or insert into database: ${error.message}`,
         500
       );
     }
   }
-}
-
-// Function to download a file from a given URL and return its content as a Buffer
-async function downloadFile(url: string): Promise<Buffer> {
-  const response = await axios.get(url, {
-    responseType: "arraybuffer",
-  });
-  return Buffer.from(response.data); // Return the binary data as a Buffer
-}
-
-// Function to sanitize input strings (currently unused)
-function sanitizeInput(input: string): string {
-  return input.replace(/[^a-zA-Z0-9-_\.]/g, "");
 }
 
 /* BASE INPUT: Put it as body in postman

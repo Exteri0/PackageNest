@@ -10,22 +10,37 @@ import {
   getCachedSize,
   setCachedSize,
 } from '../queries/packageQueries.js'; // Ensure these functions are correctly implemented
-import { v5 as uuidv5 } from 'uuid';
 import * as tar from 'tar-stream';
 import * as zlib from 'zlib';
 import * as stream from 'stream';
 import { pipeline } from 'stream/promises';
 import * as semver from 'semver'; // Ensure semver is installed and imported correctly
+import crypto from 'crypto'; // Import crypto for hashing
 
-const ID_NAMESPACE = "6ba7b810-9dad-11d1-80b4-00c04fd430c8";
+/**
+ * Generates a unique numerical ID based on package name and version.
+ * The ID is stored as a string.
+ * @param {string} name - Package name
+ * @param {string} version - Package version in "x.y.z" format
+ * @returns {string} - Unique ID as a string
+ */
+function generateUniqueId(name: string, version: string): string {
+  // Create a SHA-256 hash of the name and version
+  const hash = crypto.createHash("sha256").update(`${name}@${version}`).digest("hex");
+
+  // Convert the first 12 characters of the hash to a numerical string
+  const numericId = BigInt("0x" + hash.slice(0, 12)).toString();
+
+  return numericId;
+}
 
 /**
  * Interface representing the cost details of a package.
- * Costs are in megabytes (MB).
+ * Costs are in megabytes (MB) rounded to two decimal places.
  */
 export interface PackageCostDetail {
-  standaloneCost: number; // Size of the package itself in MB
-  totalCost: number;      // Size including all dependencies in MB
+  standaloneCost: number; // Size of the package itself in MB (rounded to 2 decimal places)
+  totalCost: number;      // Size including all dependencies in MB (rounded to 2 decimal places)
 }
 
 /**
@@ -309,6 +324,7 @@ export async function calculateSize(
    * @param packageName - The name of the package.
    * @param version - The version of the package.
    * @param allowDownloadIfNotInRegistry - Whether to allow downloading from npm if not in registry.
+   * @returns The total cost in MB for the package and its dependencies.
    */
   async function calculate(
     packageName: string,
@@ -317,9 +333,9 @@ export async function calculateSize(
   ): Promise<number> { // Returns totalCost in MB
     console.log(`\nStarting calculation for package: ${packageName}@${version}`);
 
-    // Generate UUID for the package using exact version
-    const packageId = uuidv5(`${packageName}-${version}`, ID_NAMESPACE);
-    console.log(`Generated UUID for ${packageName}@${version}: ${packageId}`);
+    // Generate unique ID for the package using SHA-256 hashing
+    const packageId = generateUniqueId(packageName, version);
+    console.log(`Generated unique ID for ${packageName}@${version}: ${packageId}`);
 
     // Check if the package has already been processed
     if (visitedPackages.has(packageId)) {
@@ -359,7 +375,7 @@ export async function calculateSize(
         console.log(`Cached standalone size for ${packageId}: ${cachedStandaloneSize} bytes`);
 
         if (cachedStandaloneSize !== undefined) {
-          standaloneCostMB = cachedStandaloneSize / (1024 * 1024); // bytes to MB
+          standaloneCostMB = parseFloat((cachedStandaloneSize / (1024 * 1024)).toFixed(4)); // bytes to MB, rounded to 2 decimal places
           console.log(`Using cached standalone size for ${packageId}: ${standaloneCostMB} MB`);
         } else {
           // Fetch package from S3
@@ -379,7 +395,7 @@ export async function calculateSize(
           const packageSizeBytes = s3Object.ContentLength || packageContentBuffer.length;
           console.log(`Fetched package size from S3 for ${packageId}: ${packageSizeBytes} bytes`);
 
-          standaloneCostMB = packageSizeBytes / (1024 * 1024); // bytes to MB
+          standaloneCostMB = parseFloat((packageSizeBytes / (1024 * 1024)).toFixed(4)); // bytes to MB, rounded to 2 decimal places
           console.log(`Standalone size for ${packageId}: ${standaloneCostMB} MB`);
 
           // Cache the standalone size
@@ -418,10 +434,10 @@ export async function calculateSize(
           }
         }
 
-        // Create and store PackageCostDetail
+        // Create and store PackageCostDetail with rounded values
         const costDetail: PackageCostDetail = {
           standaloneCost: standaloneCostMB,
-          totalCost: totalCostMB,
+          totalCost: parseFloat(totalCostMB.toFixed(4)),
         };
         console.log(`Calculated cost detail for ${packageId}:`, costDetail);
         visitedPackages.set(packageId, costDetail);
@@ -431,11 +447,10 @@ export async function calculateSize(
         // Package not in internal registry, download from npm
         console.log(`Package ${packageName}@${version} not found in registry. Downloading from npm.`);
         const { packageSize, packageContentBuffer } = await downloadPackageFromNpm(packageName, version);
-        standaloneCostMB = packageSize / (1024 * 1024); // bytes to MB
+        standaloneCostMB = parseFloat((packageSize / (1024 * 1024)).toFixed(4)); // bytes to MB, rounded to 2 decimal places
         console.log(`Downloaded standalone size for ${packageName}@${version}: ${standaloneCostMB} MB`);
 
         // Cache standalone size
-        const packageId = uuidv5(`${packageName}-${version}`, ID_NAMESPACE);
         await setCachedSize(packageId, packageSize, false);
         console.log(`Cached standalone size for ${packageId}: ${packageSize} bytes`);
 
@@ -454,14 +469,13 @@ export async function calculateSize(
           }
         }
 
-        // Create and store PackageCostDetail
+        // Create and store PackageCostDetail with rounded values
         const costDetail: PackageCostDetail = {
           standaloneCost: standaloneCostMB,
-          totalCost: totalCostMB,
+          totalCost: parseFloat(totalCostMB.toFixed(4)),
         };
-        console.log(`Calculated cost detail for ${packageName}@${version}:`, costDetail);
-        const packageIdFinal = uuidv5(`${packageName}-${version}`, ID_NAMESPACE);
-        visitedPackages.set(packageIdFinal, costDetail);
+        console.log(`Calculated cost detail for ${packageId}:`, costDetail);
+        visitedPackages.set(packageId, costDetail);
 
         return totalCostMB;
       } else {
@@ -495,13 +509,19 @@ export async function calculateSize(
       });
     } else {
       console.log(`\nDependency flag is false. Including only the root package in the output.`);
-      const rootPackageId = uuidv5(`${packageName}-${version}`, ID_NAMESPACE);
+      const rootPackageId = generateUniqueId(packageName, version);
       const rootCost = visitedPackages.get(rootPackageId);
       if (rootCost) {
         output[rootPackageId] = rootCost;
       } else {
         throw new CustomError(`Root package ${packageName}@${version} not found after calculation.`, 500);
       }
+    }
+
+    // Round all costs to two decimal places in the final output
+    for (const id in output) {
+      output[id].standaloneCost = parseFloat(output[id].standaloneCost.toFixed(4));
+      output[id].totalCost = parseFloat(output[id].totalCost.toFixed(4));
     }
 
     console.log(`\nFinal output for package ${packageName}@${version}:`, output);

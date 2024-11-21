@@ -96,6 +96,7 @@ export const PackageCreate = async (
       body.URL,
       body.debloat,
       body.JSProgram,
+      body.customName
     );
     console.log("Received response from service:", response);
 
@@ -174,7 +175,7 @@ export const PackageRate = async (
     res.json(response);
     console.log("Response sent from controller");
   } catch (error: any) {
-    console.error("Error in PackageCreate controller:", error);
+    console.error("Error in Rate controller:", error);
     if (error instanceof CustomError) {
       res.status(error.status).json({ error: error.message });
     } else {
