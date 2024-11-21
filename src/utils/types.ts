@@ -36,8 +36,6 @@ export class CustomError extends Error {
   }
 }
 
-// types.ts
-
 export interface PackageJson {
   name: string;
   version: string;
@@ -52,5 +50,10 @@ export interface PackageJsonResult {
   name: string;
   version: string;
   dependencies: Record<string, string>;
+}
+
+export interface PackageCostDetail {
+  standaloneCost: number;
+  totalCost: number;
 }
 

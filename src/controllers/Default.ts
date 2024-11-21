@@ -93,12 +93,9 @@ export const PackageCreate = async (
 
     const response = await Default.packageCreate(
       body.Content,
-      body.JSProgram,
       body.URL,
       body.debloat,
-      body.Name,
-      body.metadata,
-      xAuthorization
+      body.JSProgram,
     );
     console.log("Received response from service:", response);
 
@@ -146,7 +143,7 @@ export const packageIdCostGET = (
       : "",
   };
   const id: Default.PackageID = { id: req.params.name };
-  Default.packageIdCostGET(id, xAuthorization, dependency)
+  Default.packageIdCostGET(id,dependency) //xAuthorization, 
     .then((response: any) => {
       utils.writeJson(res, response);
     })

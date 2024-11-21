@@ -131,7 +131,7 @@ CREATE TABLE package_history (
 
 -- Package costs table
 CREATE TABLE package_costs (
-    package_id VARCHAR(255) PRIMARY KEY NOT NULL REFERENCES packages(package_id) ON DELETE CASCADE,
+    package_id VARCHAR(255) PRIMARY KEY NOT NULL,
     standalone_cost DOUBLE PRECISION,
     total_cost DOUBLE PRECISION,
     computed_at TIMESTAMP NOT NULL DEFAULT NOW()

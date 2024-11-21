@@ -1,7 +1,7 @@
 import { String } from "aws-sdk/clients/batch";
-import { getDbPool } from "../service/databaseConnection";
-import { Package, PackageQuery } from "../service/DefaultService";
-import { CustomError } from "../utils/types";
+import { getDbPool } from "../service/databaseConnection.js";
+import { Package, PackageQuery } from "../service/DefaultService.js";
+import { CustomError } from "../utils/types.js";
 
 export async function getPackages(
   conditions: string[],
@@ -182,6 +182,74 @@ export const packageExistsQuery = async (
     return queryRes.rows[0].exists;
   } catch (error) {
     console.error("Error checking if package exists:", error);
+    throw error;
+  }
+};
+
+// Retrieve package details by packageId
+export const getPackageDetails = async (
+  packageId: string
+): Promise<{ packageName: string; version: string }> => {
+  const query = `SELECT name, version FROM public.packages WHERE package_id = $1`;
+  try {
+    const res = await getDbPool().query(query, [packageId]);
+    if (res.rows.length === 0) {
+      throw new Error(`Package with ID ${packageId} not found`);
+    }
+    return { packageName: res.rows[0].name, version: res.rows[0].version };
+  } catch (error) {
+    console.error("Error fetching package details by ID:", error);
+    throw error;
+  }
+};
+
+// Check if package exists by packageId
+export const packageExists = async (packageId: string): Promise<boolean> => {
+  const query = `SELECT 1 FROM public.packages WHERE package_id = $1 LIMIT 1`;
+  try {
+    const res = await getDbPool().query(query, [packageId]);
+    return res.rowCount > 0;
+  } catch (error) {
+    console.error("Error checking if package exists:", error);
+    throw error;
+  }
+};
+
+// Get cached size
+export const getCachedSize = async (
+  packageId: string,
+  dependency: boolean
+): Promise<number | undefined> => {
+  const dbPool = getDbPool();
+  const column = dependency ? 'total_cost' : 'standalone_cost';
+  const query = `SELECT ${column} FROM package_costs WHERE package_id = $1`;
+  try {
+    const result = await dbPool.query(query, [packageId]);
+    const size = result.rows[0]?.[column];
+    return size !== null && size !== undefined ? Number(size) : undefined;
+  } catch (error) {
+    console.error("Error fetching cached size:", error);
+    throw error;
+  }
+};
+
+// Set cached size
+export const setCachedSize = async (
+  packageId: string,
+  size: number,
+  dependency: boolean
+): Promise<void> => {
+  const dbPool = getDbPool();
+  const column = dependency ? 'total_cost' : 'standalone_cost';
+  const query = `
+    INSERT INTO package_costs (package_id, ${column}, computed_at)
+    VALUES ($1, $2, NOW())
+    ON CONFLICT (package_id) DO UPDATE SET ${column} = $2, computed_at = NOW();
+  `;
+  try {
+    await dbPool.query(query, [packageId, size]);
+  } catch (error) {
+    console.error("Error setting cached size:", error);
     throw error;
   }
 };

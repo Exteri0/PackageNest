@@ -10,7 +10,7 @@ import { getDbPool } from "./databaseConnection.js";
 import * as packageQueries from "../queries/packageQueries.js";
 import { calculateMetrics } from "../Metrics/metricExport.js";
 import { calculateSize } from "../service/packageUtils.js";
-import { CustomError } from "../utils/types.js";
+import { CustomError, PackageCostDetail } from "../utils/types.js";
 
 import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
@@ -328,32 +328,21 @@ export async function packageByRegExGet(
  */
 export async function packageCreate(
   Content?: string,
-  JSProgram?: string,
   URL?: string,
   debloat?: boolean,
-  Name?: string,
-  metadata?: {
-    Version?: string;
-    ID?: string;
-    Name?: string;
-  },
-  xAuthorization?: AuthenticationToken
+  JSProgram?: string
 ) {
-  let packageName: string | undefined = metadata?.Name?.trim();
-  let packageVersion: string | undefined = metadata?.Version?.trim();
-  let packageId: string | undefined = metadata?.ID?.trim();
-  let contentBuffer: string | undefined = undefined;
+  // Initialize variables to hold package information
+  let packageName: string | undefined = undefined;
+  let packageVersion: string | undefined = undefined;
+  let packageId: string | undefined = undefined;
+  let contentBuffer: Buffer | undefined = undefined; // For holding binary data
   let returnString: string | undefined = undefined;
   let repoOwner: string | undefined = undefined;
   let repoName: string | undefined = undefined;
   let debloatVal: boolean = debloat ?? false;
-  console.log("Received xAuthorization:", xAuthorization);
 
-  if (!packageVersion) {
-    console.log("Version is not provided, setting to default 1.0.0");
-    packageVersion = "1.0.0";
-  }
-
+  // Check that either 'Content' or 'URL' is provided, but not both or neither
   if ((!URL && !Content) || (URL && Content)) {
     console.error(
       "Invalid request body: 'Content' or 'URL' (exclusively) is required."
@@ -363,66 +352,66 @@ export async function packageCreate(
       400
     );
   } else {
-    if (!packageName && !Name) {
-      console.log(
-        "Name is not in neither metadata or body, getting it from the URL or package json."
+    // If 'URL' is provided
+    if (URL) {
+      console.log("Processing package creation with URL");
+      // Extract the repository owner and name from the GitHub URL
+      const repoMatch = URL.match(
+        /github\.com\/([^/]+)\/([^/]+)(?:\/blob\/([^/]+)\/(.+))?/
       );
-      if (URL) {
-        const repoMatch = URL.match(
-          /github\.com\/([^/]+)\/([^/]+)(?:\/blob\/([^/]+)\/(.+))?/
+      if (!repoMatch) throw new CustomError("Invalid GitHub URL format", 400);
+      repoOwner = repoMatch[1];
+      repoName = repoMatch[2];
+      console.log(`Extracted repoOwner: ${repoOwner}, repoName: ${repoName}`);
+
+      try {
+        // Retrieve package information from the repository's package.json
+        const responseInfo = await getPackageInfoRepo(repoOwner, repoName);
+        packageName = responseInfo?.name;
+        packageVersion = responseInfo?.version || "1.0.0";
+        console.log(
+          `Retrieved packageName: ${packageName}, packageVersion: ${packageVersion}`
         );
-        if (!repoMatch) throw new CustomError("Invalid GitHub URL format", 400);
-        repoOwner = repoMatch[1];
-        repoName = repoMatch[2];
-        try {
-          const responseInfo = await getPackageInfoRepo(repoOwner, repoName);
-          packageName = responseInfo?.name;
-          packageVersion = responseInfo?.version;
-        } catch (error: any) {
-          console.error(
-            "Error occurred in retrieving info from package json using URL",
-            error
-          );
-          throw new CustomError(
-            `Failed to retrieve package info from package json using URL`,
-            500
-          );
-        }
-      } else if (Content) {
-        try {
-          const responseInfo = await getPackageInfoZipFile(Content);
-          packageName = responseInfo.name;
-          packageVersion = responseInfo.version;
-        } catch (error: any) {
-          console.error(
-            "Error occurred in retrieving info from package json:",
-            error
-          );
-          throw new CustomError(
-            `Failed to retrieve package info from package json`,
-            500
-          );
-        }
+      } catch (error: any) {
+        console.error(
+          "Error occurred in retrieving info from package.json using URL",
+          error
+        );
+        throw new CustomError(
+          `Failed to retrieve package info from package.json using URL`,
+          500
+        );
       }
-    } else if (Name) {
-      console.log(
-        "name is provided in body, using that instead of metadata, or package json."
-      );
-      packageName = Name.trim();
+    }
+    // If 'Content' is provided
+    else if (Content) {
+      console.log("Processing package creation with Content");
+      try {
+        // Retrieve package information from the provided zip file content
+        const responseInfo = await getPackageInfoZipFile(Content);
+        packageName = responseInfo.name;
+        packageVersion = responseInfo.version || "1.0.0";
+        console.log(
+          `Retrieved packageName: ${packageName}, packageVersion: ${packageVersion}`
+        );
+      } catch (error: any) {
+        console.error(
+          "Error occurred in retrieving info from package.json:",
+          error
+        );
+        throw new CustomError(
+          `Failed to retrieve package info from package.json`,
+          500
+        );
+      }
     }
 
+    // Generate a unique package ID using UUID version 5
     const ID_NAMESPACE = "6ba7b810-9dad-11d1-80b4-00c04fd430c8";
+    packageId = uuidv5(`${packageName}-${packageVersion}`, ID_NAMESPACE);
+    console.log(`Generated packageId: ${packageId}`);
 
-    if (
-      !packageId ||
-      packageId !== uuidv5(`${packageName}-${packageVersion}`, ID_NAMESPACE)
-    ) {
-      console.log(
-        "packageId is not provided or does not match the UUIDv5 of the packageName and packageVersion, regenerating."
-      );
-      packageId = uuidv5(`${packageName}-${packageVersion}`, ID_NAMESPACE);
-    }
-
+    // Ensure that the S3 bucket name is defined
     if (!bucketName) {
       console.error(
         "S3_BUCKET_NAME is not defined in the environment variables."
@@ -433,40 +422,50 @@ export async function packageCreate(
       );
     }
 
-    if (await packageQueries.packageExistsQuery(packageId)) {
+    // Check if the package already exists in the database
+    if (await packageQueries.packageExists(packageId)) {
       console.error("Package already exists with ID:", packageId);
       throw new CustomError("Package already exists.", 409);
     }
 
+    // If 'Content' is provided (uploading a zip file directly)
     if (Content && !URL) {
-      returnString = Content;
       console.log("Entered packageCreate service function with Content");
       console.log(
         "Received body:",
         JSON.stringify({
           Content: `${Content}`,
-          URL: `${URL}`,
           debloat: `${debloatVal}`,
           JSProgram: `${JSProgram ?? null}`,
         })
       );
 
+      // Decode the base64 encoded zip file to a Buffer
+      contentBuffer = Buffer.from(Content, "base64");
+      returnString = Content; // Keep the original base64 string for the response
+
+      // Define the S3 key (path) for storing the package
       const s3Key = `packages/${packageName}/v${packageVersion}/package.zip`;
 
+      // Prepare parameters for uploading to S3
       const s3Params = {
         Bucket: bucketName,
         Key: s3Key,
-        Body: Buffer.from(Content, "base64"),
+        Body: contentBuffer, // Upload the decoded zip file
         ContentType: "application/zip",
       };
       try {
         console.log("Uploading package to S3 with key:", s3Key);
+        // Upload the package content to S3
         await s3.putObject(s3Params).promise();
+        console.log("Package uploaded to S3 successfully.");
       } catch (error) {
         console.error("Error occurred in packageCreate:", error);
         throw new CustomError(`Failed to upload content`, 500);
       }
-    } else if (URL && !Content) {
+    }
+    // If 'URL' is provided (downloading from GitHub)
+    else if (URL && !Content) {
       console.log("Entered packageCreate service function with URL");
       console.log(
         "Received body:",
@@ -477,25 +476,34 @@ export async function packageCreate(
         })
       );
 
+      // Placeholder for RATE functionality to be implemented later
       // RATE
 
+      // Construct the API URL to download the repository as a zipball
       const apiUrl = `https://api.github.com/repos/${repoOwner}/${repoName}/zipball`;
 
       try {
         console.log(`Downloading file from URL: ${apiUrl}`);
+        // Download the repository zip file and get its content as a Buffer
         contentBuffer = await downloadFile(apiUrl);
-        returnString = btoa(contentBuffer);
+        // Convert the Buffer to a base64 encoded string for the response
+        returnString = contentBuffer.toString("base64");
+
+        // Define the S3 key (path) for storing the package
         const s3Key = `packages/${packageName}/v${packageVersion}/package.zip`;
-        // Upload the downloaded file as a zip to S3
+
+        // Prepare parameters for uploading to S3
         const s3Params = {
           Bucket: bucketName,
           Key: s3Key,
-          Body: Buffer.from(contentBuffer, "base64"),
+          Body: contentBuffer, // Upload the zip file content directly
           ContentType: "application/zip",
         };
 
         console.log("Uploading package from URL to S3 with key:", s3Key);
+        // Upload the package content to S3
         await s3.putObject(s3Params).promise();
+        console.log("Package uploaded to S3 successfully.");
       } catch (error) {
         console.error("Error downloading or processing file from URL:", error);
         throw new CustomError(
@@ -506,59 +514,53 @@ export async function packageCreate(
     }
 
     try {
-      if (!contentBuffer)
-        //no url download, content type is true
-        await packageQueries.insertPackageQuery(
-          packageName,
-          packageVersion ?? "1.0.0",
-          packageId,
-          true
-        );
-      else
-        await packageQueries.insertPackageQuery(
-          packageName,
-          packageVersion ?? "1.0.0",
-          packageId,
-          false
-        );
-
-      await packageQueries.insertIntoMetadataQuery(
+      // Insert the package into the 'packages' table
+      await packageQueries.insertPackageQuery(
         packageName,
-        packageVersion ?? "1.0.0",
-        packageId
+        packageVersion as string,
+        packageId,
+        !URL // 'content_type' is true if 'URL' is not provided
       );
+      console.log("Package information inserted into the 'packages' table.");
 
-      if (!contentBuffer)
-        await packageQueries.insertIntoPackageDataQuery(
-          packageId,
-          true,
-          URL,
-          debloatVal,
-          JSProgram
-        );
-      else
-        await packageQueries.insertIntoPackageDataQuery(
-          packageId,
-          false,
-          URL,
-          debloatVal,
-          JSProgram
-        );
+      // Insert metadata into the 'package_metadata' table
+      await packageQueries.insertIntoMetadataQuery(packageName, packageVersion as string, packageId);
+      console.log("Package metadata inserted into the 'package_metadata' table.");
 
-      console.log("Package and metadata, and data registered successfully.");
+      // Insert additional data into the 'package_data' table
+      await packageQueries.insertIntoPackageDataQuery(
+        packageId,
+        !URL, // 'content_type' is true if 'URL' is not provided
+        URL,
+        debloatVal,
+        JSProgram
+      );
+      console.log("Package data inserted into the 'package_data' table.");
 
+      console.log("Package and metadata registered successfully.");
+
+      // Prepare the response data
+      const responseData: any = {
+        Content: returnString,
+        JSProgram: JSProgram,
+      };
+
+      // Include 'URL' in response if it was provided
+      if (URL) {
+        responseData.URL = URL;
+      }
+
+      // Construct the response object
       const response = {
         metadata: {
           Name: packageName,
           Version: packageVersion,
           ID: packageId,
         },
-        data: {
-          Content: returnString,
-          JSProgram: JSProgram,
-        },
+        data: responseData,
       };
 
+      // Return the response object
       return response;
     } catch (error) {
       console.error("Error occurred in packageCreate:", error);
@@ -570,14 +572,15 @@ export async function packageCreate(
   }
 }
 
-async function downloadFile(url: string): Promise<string> {
+// Function to download a file from a given URL and return its content as a Buffer
+async function downloadFile(url: string): Promise<Buffer> {
   const response = await axios.get(url, {
     responseType: "arraybuffer",
   });
-  const base64Encoded = Buffer.from(response.data).toString("base64");
-  return base64Encoded;
+  return Buffer.from(response.data); // Return the binary data as a Buffer
 }
 
+// Function to sanitize input strings (currently unused)
 function sanitizeInput(input: string): string {
   return input.replace(/[^a-zA-Z0-9-_\.]/g, "");
 }
@@ -643,17 +646,19 @@ export function packageDelete(
 }*/
 export async function packageIdCostGET(
   id: PackageID,
-  //xAuthorization: AuthenticationToken,
-  dependency = true
-): Promise<PackageCost> {
+  dependency? : boolean
+): Promise<{ [packageId: string]: PackageCostDetail }> {
   try {
-      const totalSize = await calculateSize(id.id, dependency);
-      const standaloneSize = await calculateSize(id.id, false); // Standalone size calculation
-      return { standaloneCost: standaloneSize, totalCost: totalSize };
+    const {packageName, version} = await packageQueries.getPackageDetails(id.id);
+    const costDetails = await calculateSize(packageName, version ,dependency ?? false);
+    return costDetails;
   } catch (error) {
-      console.error("Error calculating package size:", error);
-      const errorMessage = (error as Error).message;
-      throw new CustomError(`Failed to calculate package size cost: ${errorMessage}`, 500);
+    console.error("Error calculating package size:", error);
+    const errorMessage = (error as Error).message;
+    throw new CustomError(
+      `Failed to calculate package size cost: ${errorMessage}`,
+      500
+    );
   }
 }
 
