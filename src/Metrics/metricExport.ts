@@ -6,6 +6,10 @@ import { calculateCorrectnessMetric } from "./correctness.js";
 import { calculateResponsivenessMetric } from "./responsiveness.js";
 import { calculateLicenseMetric } from "./license.js";
 import { calculatePinningMetric } from "./goodPinning.js";
+import { calculatePullRequestMetric } from "./PullRequest.js";
+import { calculateBusFactorMetric } from './busFactor.js'; // Import the new function
+
+
 
 function getLatency(startTime: number): number {
   return Number(((performance.now() - startTime) / 1000).toFixed(3));
@@ -17,15 +21,18 @@ export function calculateNetScore(
   correctnessScore: number,
   responsiveMaintainerScore: number,
   goodPinningPracticeScore: number = 0,
-  busFactorScore: number = 0
+  busFactorScore: number = 0,
+  pullRequestScore: number = 0
 ): { NetScore: number } {
   return {
     NetScore:
-      0.35 * licenseScore +
+      0.3 * licenseScore +
       0.2 * rampUpScore +
-      0.25 * correctnessScore +
+      0.1 * correctnessScore +
       0.1 * responsiveMaintainerScore +
-      0.1 * goodPinningPracticeScore
+      0.1 * goodPinningPracticeScore +
+      0.1 * pullRequestScore +
+      0.1 * busFactorScore
   };
 }
 
@@ -43,12 +50,16 @@ export async function calculateMetrics(input: string) {
       { Correctness, Correctness_Latency },
       { RampUp, RampUp_Latency },
       { GoodPinningPractice, GoodPinningPracticeLatency },
+      { PullRequest, PullRequestLatency },
+      { BusFactor, BusFactor_Latency },
     ] = await Promise.all([
       calculateLicenseMetric(owner, name),
       calculateResponsivenessMetric(owner, name),
       calculateCorrectnessMetric(owner, name),
       calculateRampUpMetric(owner, name),
       calculatePinningMetric(owner, name),
+      calculatePullRequestMetric(owner, name),
+      calculateBusFactorMetric(owner, name),
     ]);
 
     let { NetScore } = calculateNetScore(
@@ -56,7 +67,9 @@ export async function calculateMetrics(input: string) {
       RampUp,
       Correctness,
       ResponsiveMaintainer,
-      GoodPinningPractice
+      GoodPinningPractice,
+      PullRequest,
+      BusFactor
     );
     const NetScore_Latency = getLatency(startTime);
     NetScore = Number(NetScore.toFixed(3));
@@ -69,10 +82,10 @@ export async function calculateMetrics(input: string) {
       RampUp_Latency,
       Correctness,
       Correctness_Latency,
-      BusFactor: -1,
-      BusFactor_Latency: -1,
-      PullRequest: -1,
-      PullRequestLatency: -1,
+      BusFactor,
+      BusFactor_Latency,
+      PullRequest,
+      PullRequestLatency,
       GoodPinningPractice,
       GoodPinningPracticeLatency,
       ResponsiveMaintainer,

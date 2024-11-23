@@ -707,31 +707,8 @@ export async function packageIdCostGET(
 export async function packageRate(
   id: PackageID,
   xAuthorization: AuthenticationToken
-): Promise<PackageRating> {
-  /* return new Promise(function(resolve) {
-    const examples: { [key: string]: PackageRating } = {
-      "application/json": {
-        GoodPinningPractice: 4.145608029883936,
-        CorrectnessLatency: 5.962133916683182,
-        PullRequestLatency: 1.0246457001441578,
-        RampUpLatency: 2.3021358869347655,
-        PullRequest: 1.2315135367772556,
-        LicenseScore: 3.616076749251911,
-        BusFactorLatency: 6.027456183070403,
-        LicenseScoreLatency: 2.027123023002322,
-        GoodPinningPracticeLatency: 7.386281948385884,
-        Correctness: 1.4658129805029452,
-        ResponsiveMaintainerLatency: 9.301444243932576,
-        NetScoreLatency: 6.84685269835264,
-        NetScore: 1.4894159098541704,
-        ResponsiveMaintainer: 7.061401241503109,
-        RampUp: 5.637376656633329,
-        BusFactor: 0.8008281904610115,
-      },
-    };
-    resolve(examples['application/json']);
-  }); */
-  const testOutput: any = await calculateMetrics("https://github.com/cloudinary/cloudinary_npm");
+): Promise<PackageRating> { 
+  const testOutput: any = await calculateMetrics("https://github.com/hasansultan92/watch.js");
   let response: PackageRating = {
     GoodPinningPractice: 0,
     CorrectnessLatency: 0,

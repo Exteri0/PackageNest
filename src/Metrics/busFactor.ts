@@ -1,145 +1,165 @@
-import { graphql, GraphqlResponseError } from "@octokit/graphql";
-import logger from "../logger.js";
-import "dotenv/config";
+// busFactor.ts
 
-// define interface
-export interface BusFactorInterface {
-  repository: {
-    collaborators: {
-      edges: Array<{
-        node: {
-          login: string;
-          contributionsCollection: {
-            totalCommitContributions: number;
-          };
-        };
-      }>;
-    };
-  };
+import { graphql, GraphqlResponseError } from '@octokit/graphql';
+import { performance } from 'perf_hooks';
+import 'dotenv/config';
+
+const githubToken = process.env.MY_TOKEN || '';
+if (!githubToken) {
+  console.error('MY_TOKEN is not defined');
+  process.exit(1);
 }
 
-// calculates latency
+const graphqlWithAuth = graphql.defaults({
+  headers: {
+    authorization: `token ${githubToken}`,
+  },
+});
+
+interface BusFactorResult {
+  BusFactor: number;
+  BusFactor_Latency: number; // in seconds
+}
+
 function getLatency(startTime: number): number {
-  return performance.now() - startTime;
+  return Number(((performance.now() - startTime) / 1000).toFixed(3));
 }
 
-// calculates the bus factor
-export async function getBusFactorJSON(
-  owner: string = "cloudinary",
-  name: string = "cloudinary_npm",
-  token: string | undefined = process.env.MY_TOKEN
-): Promise<{ BusFactor: number; BusFactor_Latency: number }> {
+export async function calculateBusFactorMetric(
+  owner: string,
+  repo: string
+): Promise<BusFactorResult> {
+  console.log(`Calculating Bus Factor for repository: ${owner}/${repo}`);
   const startTime = performance.now();
-  logger.info(`Calculating bus factor for ${owner}/${name}`);
 
-  // Validate the token
-  if (!token) {
-    logger.error("MY_TOKEN is not defined");
-    process.exit(1);
-  } else if (!token.includes("ghp_")) {
-    logger.error("Invalid MY_TOKEN");
-    process.exit(1);
+  try {
+    const contributors = await fetchContributors(owner, repo);
+    if (contributors.length === 0) {
+      console.warn('No contributors found. Assigning Bus Factor score of 0.');
+      return { BusFactor: 0, BusFactor_Latency: getLatency(startTime) };
+    }
+
+    // Calculate total contributions
+    const totalContributions = contributors.reduce(
+      (sum, contributor) => sum + contributor.contributions,
+      0
+    );
+
+    // Sort contributors by contributions in descending order
+    contributors.sort((a, b) => b.contributions - a.contributions);
+
+    // Determine the minimal number of contributors responsible for at least 50% of the contributions
+    let cumulativeContributions = 0;
+    let keyContributors = 0;
+    for (const contributor of contributors) {
+      cumulativeContributions += contributor.contributions;
+      keyContributors++;
+      if (cumulativeContributions >= totalContributions / 2) {
+        break;
+      }
+    }
+
+    const busFactorScore = 1 - keyContributors / contributors.length;
+    console.log(`Bus Factor score calculated: ${busFactorScore.toFixed(3)}`);
+
+    return {
+      BusFactor: Number(busFactorScore.toFixed(3)),
+      BusFactor_Latency: getLatency(startTime),
+    };
+  } catch (error) {
+    console.error(
+      `Error calculating Bus Factor for ${owner}/${repo}:`,
+      error instanceof Error ? error.message : error
+    );
+    return { BusFactor: -1, BusFactor_Latency: getLatency(startTime) };
   }
+}
 
-  // Set up GraphQL with authentication
-  const graphqlWithAuth = graphql.defaults({
-    headers: {
-      authorization: `token ${token}`,
-    },
-  });
+/**
+ * Fetches the list of contributors from the GitHub GraphQL API.
+ * @param owner - Repository owner.
+ * @param repo - Repository name.
+ * @returns An array of contributors with their contribution counts.
+ */
+async function fetchContributors(
+  owner: string,
+  repo: string
+): Promise<Array<{ login: string; contributions: number }>> {
+  const contributorsMap: { [login: string]: number } = {};
+  let hasNextPage = true;
+  let cursor: string | null = null;
+  const maxIterations = 10; // To prevent excessive API calls
 
-  // define the GraphQL query
-  const query = `
-    query($owner: String!, $repo: String!) {
-      repository(owner: $owner, name: $repo) {
-        collaborators(first: 100) {
-          edges {
-            node {
-              login
-              contributionsCollection {
-                totalCommitContributions
+  console.log('Fetching contributors from GitHub GraphQL API...');
+
+  for (let i = 0; hasNextPage && i < maxIterations; i++) {
+    const query = `
+      query($owner: String!, $repo: String!, $cursor: String) {
+        repository(owner: $owner, name: $repo) {
+          defaultBranchRef {
+            target {
+              ... on Commit {
+                history(first: 100, after: $cursor) {
+                  pageInfo {
+                    hasNextPage
+                    endCursor
+                  }
+                  nodes {
+                    author {
+                      user {
+                        login
+                      }
+                      name
+                    }
+                  }
+                }
               }
             }
           }
         }
       }
-    }
-  `;
+    `;
 
-  const variables = {
-    owner: owner,
-    repo: name,
-  };
+    const variables = {
+      owner,
+      repo,
+      cursor,
+    };
 
-  try {
-    // execute the GraphQL query
-    const response = await graphqlWithAuth<BusFactorInterface>(
-      query,
-      variables
-    );
-    logger.info("GraphQL query executed successfully");
+    try {
+      const response: any = await graphqlWithAuth(query, variables);
 
-    const collaborators = response.repository.collaborators.edges.map(
-      (edge) => ({
-        login: edge.node.login,
-        contributions:
-          edge.node.contributionsCollection.totalCommitContributions,
-      })
-    );
+      const history = response.repository.defaultBranchRef.target.history;
+      const nodes = history.nodes;
 
-    // check if no contributors were found
-    if (collaborators.length === 0) {
-      logger.warn("No contributors found.");
-      return {
-        BusFactor: -1,
-        BusFactor_Latency: getLatency(startTime),
-      };
-    }
+      for (const node of nodes) {
+        let login = 'unknown';
+        if (node.author.user && node.author.user.login) {
+          login = node.author.user.login;
+        } else if (node.author.name) {
+          login = node.author.name;
+        }
 
-    // sort contributors based on contributions
-    collaborators.sort((a, b) => b.contributions - a.contributions);
-
-    // calculate the total number of commits
-    const totalCommits = collaborators.reduce(
-      (sum, contributor) => sum + contributor.contributions,
-      0
-    );
-
-    // calculate the number of key contributors that account for at least 50% of total commits
-    let cumulativeCommits = 0;
-    let keyContributors = 0;
-
-    for (const contributor of collaborators) {
-      cumulativeCommits += contributor.contributions;
-      keyContributors++;
-
-      if (cumulativeCommits >= totalCommits * 0.5) {
-        break;
+        if (contributorsMap[login]) {
+          contributorsMap[login] += 1;
+        } else {
+          contributorsMap[login] = 1;
+        }
       }
-    }
 
-    // calculate the Bus Factor score
-    const busFactorPercentage = 1 - keyContributors / collaborators.length;
-    const busFactorScore = Number(busFactorPercentage.toFixed(3));
-
-    logger.info(`Bus factor calculated: ${busFactorScore}`);
-    return {
-      BusFactor: busFactorScore,
-      BusFactor_Latency: getLatency(startTime),
-    };
-  } catch (error: unknown) {
-    if (error instanceof GraphqlResponseError) {
-      logger.error("GraphQL Response Error:", { message: error.message });
-    } else if (error instanceof Error) {
-      logger.error("Error while calculating bus factor:", {
-        message: error.message,
-      });
-    } else {
-      logger.error("Unknown error occurred");
+      hasNextPage = history.pageInfo.hasNextPage;
+      cursor = history.pageInfo.endCursor;
+    } catch (error) {
+      console.error('Error fetching contributors:', error);
+      throw error;
     }
-    return {
-      BusFactor: 0,
-      BusFactor_Latency: getLatency(startTime),
-    };
   }
+
+  const contributors = Object.entries(contributorsMap).map(([login, contributions]) => ({
+    login,
+    contributions,
+  }));
+
+  console.log(`Total contributors fetched: ${contributors.length}`);
+  return contributors;
 }
