@@ -11,6 +11,7 @@ import * as packageQueries from "../queries/packageQueries.js";
 import { calculateMetrics } from "../Metrics/metricExport.js";
 import { calculateSize } from "../service/packageUtils.js";
 import { CustomError, PackageCostDetail } from "../utils/types.js";
+import { extractGithubRepoLink } from "../utils/packageExtractor.js"; // Import the extractor
 import * as crypto from "crypto";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
@@ -114,6 +115,13 @@ export interface PackageQuery {
   Version: string;
   ID: string;
   Name: string;
+}
+
+interface InputPackage {
+  Content: string;
+  JSProgram: string | undefined;
+  debloat: boolean;
+  Name: string | undefined;
 }
 
 export function registerUser(body: AuthenticationRequest): Promise<void> {
@@ -351,6 +359,9 @@ export async function packageCreate(
   let returnString: string | undefined = undefined;
   let debloatVal: boolean = debloat ?? false;
 
+  let metrics: any = null;
+  let rating: number = 0;
+
   // Check that either 'Content' or 'URL' is provided, but not both or neither
   if ((!URL && !Content) || (URL && Content)) {
     console.error("Invalid request body: 'Content' or 'URL' (exclusively) is required.");
@@ -460,6 +471,25 @@ export async function packageCreate(
         // Decode the base64 encoded zip file to a Buffer
         contentBuffer = Buffer.from(Content, "base64");
         returnString = Content; // Keep the original base64 string for the response
+        
+        const packageExtractorInput: InputPackage = {
+          Content,
+          JSProgram,
+          debloat: debloatVal,
+          Name: customName,
+        };
+
+        const repoLink = await extractGithubRepoLink(packageExtractorInput);
+        console.log(`busfactor: Extracted repository link: ${repoLink}`);
+
+        if (repoLink) {
+          console.log("busfactor: Calculating metrics for the package...");
+          metrics = await calculateMetrics(repoLink);
+          rating = metrics.NetScore;
+          console.log(`busfactor: Calculated NetScore (rating): ${rating}`);
+        } else {
+          console.log("busfactor: Repository link not found in package.json.");
+        }
 
         // Define the S3 key (path) for storing the package
         const s3Key = `packages/${packageName}/v${packageVersion}/package.zip`;
@@ -498,6 +528,16 @@ export async function packageCreate(
       let zipBuffer: Buffer;
 
       try {
+        console.log("busfactor: Calculating metrics for the package...");
+        metrics = await calculateMetrics(URL);
+        rating = metrics.NetScore;
+        console.log(`busfactor: Calculated NetScore (rating): ${rating}`);
+
+        if (rating < 0.5) {
+          throw new CustomError("Rating is below the acceptable threshold (0.5). Upload aborted.", 400);
+        }
+
+
         if (URL.includes("github.com")) {
           // Extract repo owner and name
           const repoMatch = URL.match(/github\.com\/([^/]+)\/([^/]+)(?:\/blob\/[^/]+\/.+)?$/);
@@ -583,6 +623,14 @@ export async function packageCreate(
         JSProgram
       );
       console.log("Package data inserted into the 'package_data' table.");
+
+      // Insert metrics into the 'package_ratings' table if metrics are available
+      if (metrics) {
+        console.log("busfactor: Inserting metrics into the 'package_ratings' table.");
+        await packageQueries.insertIntoPackageRatingsQuery(packageId, metrics);
+        console.log("busfactor: Metrics inserted into the 'package_ratings' table.");
+      }
+
 
       console.log("Package and metadata registered successfully.");
 

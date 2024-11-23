@@ -253,3 +253,78 @@ export const setCachedSize = async (
     throw error;
   }
 };
+
+export async function insertIntoPackageRatingsQuery(packageId: string, metrics: any): Promise<void> {
+  console.log(`busfactor: Inserting metrics into package_ratings for packageId: ${packageId}`);
+  const dbPool = getDbPool();
+
+  const query = `
+    INSERT INTO package_ratings (
+      package_id,
+      bus_factor,
+      bus_factor_latency,
+      correctness,
+      correctness_latency,
+      ramp_up,
+      ramp_up_latency,
+      responsive_maintainer,
+      responsive_maintainer_latency,
+      license_score,
+      license_score_latency,
+      good_pinning_practice,
+      good_pinning_practice_latency,
+      pull_request,
+      pull_request_latency,
+      net_score,
+      net_score_latency
+    )
+    VALUES (
+      $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17
+    )
+    ON CONFLICT (package_id) DO UPDATE SET
+      bus_factor = EXCLUDED.bus_factor,
+      bus_factor_latency = EXCLUDED.bus_factor_latency,
+      correctness = EXCLUDED.correctness,
+      correctness_latency = EXCLUDED.correctness_latency,
+      ramp_up = EXCLUDED.ramp_up,
+      ramp_up_latency = EXCLUDED.ramp_up_latency,
+      responsive_maintainer = EXCLUDED.responsive_maintainer,
+      responsive_maintainer_latency = EXCLUDED.responsive_maintainer_latency,
+      license_score = EXCLUDED.license_score,
+      license_score_latency = EXCLUDED.license_score_latency,
+      good_pinning_practice = EXCLUDED.good_pinning_practice,
+      good_pinning_practice_latency = EXCLUDED.good_pinning_practice_latency,
+      pull_request = EXCLUDED.pull_request,
+      pull_request_latency = EXCLUDED.pull_request_latency,
+      net_score = EXCLUDED.net_score,
+      net_score_latency = EXCLUDED.net_score_latency
+  `;
+
+  const values = [
+    packageId,
+    metrics.BusFactor,
+    metrics.BusFactor_Latency,
+    metrics.Correctness,
+    metrics.Correctness_Latency,
+    metrics.RampUp,
+    metrics.RampUp_Latency,
+    metrics.ResponsiveMaintainer,
+    metrics.ResponsiveMaintainer_Latency,
+    metrics.License,
+    metrics.License_Latency,
+    metrics.GoodPinningPractice,
+    metrics.GoodPinningPracticeLatency,
+    metrics.PullRequest,
+    metrics.PullRequestLatency,
+    metrics.NetScore,
+    metrics.NetScore_Latency,
+  ];
+
+  try {
+    await dbPool.query(query, values);
+    console.log(`busfactor: Metrics successfully inserted/updated for packageId: ${packageId}`);
+  } catch (error) {
+    console.error(`busfactor: Error inserting metrics into package_ratings for packageId: ${packageId}`, error);
+    throw error;
+  }
+}
