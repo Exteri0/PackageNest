@@ -1,4 +1,4 @@
-name: Deploy production branch
+name: Deploy to EC2
 
 on:
   push:
@@ -7,40 +7,34 @@ on:
 
 jobs:
   deploy:
-    name: deploy
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        node-version: [18.x]
+
     steps:
       - uses: actions/checkout@v3
-      - name: Use Node.js ${{ matrix.node-version }}
+
+      - name: Set up Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: ${{ matrix.node-version }}
-      - run: npm ci
-      - run: echo "is this working"
-      - run: ls -la
-      - name: serverless package
-        uses: serverless/github-action@v4
-        with:
-          args: deploy
+          node-version: 18
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Deploy to EC2
         env:
-          # SERVERLESS_ACCESS_KEY: ${{ secrets.SERVERLESS_ACCESS_KEY }}
-          # or if using AWS credentials directly
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
-          AWS_REGION: ${{ secrets.AWS_REGION }}
-          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
-          RDS_CLUSTER_NAME: ${{ secrets.RDS_CLUSTER_NAME }}
-          RDS_USER: ${{ secrets.RDS_USER }}
-          RDS_HOST: ${{ secrets.RDS_HOST }}
-          RDS_DATABASE: ${{ secrets.RDS_DATABASE }}
-          RDS_PASSWORD: ${{ secrets.RDS_PASSWORD }}
-          RDS_PORT: ${{ secrets.RDS_PORT }}
-          SECURITY_GROUP_ID: ${{ secrets.SECURITY_GROUP_ID }}
-          SUBNET_ID_1: ${{ secrets.SUBNET_ID_1 }}
-          SUBNET_ID_2: ${{ secrets.SUBNET_ID_2 }}
-          SERVERLESS_ACCESS_KEY: ${{ secrets.SERVERLESS_ACCESS_KEY }}
-          MY_TOKEN: ${{ secrets.MY_TOKEN }}
+          PRIVATE_KEY: ${{ secrets.EC2_PRIVATE_KEY }}  
+          EC2_USER: ubuntu                           
+          EC2_HOST: ${{ secrets.EC2_HOST }}           
+        run: |
+          echo "${PRIVATE_KEY}" > private_key.pem
+          chmod 600 private_key.pem
+
+          # Transfer the build_and_deploy.sh script to the EC2 instance
+          scp -i private_key.pem ./build_and_deploy.sh $EC2_USER@$EC2_HOST:~/app3/
+
+          # SSH into the EC2 instance and run the script
+          ssh -i private_key.pem $EC2_USER@$EC2_HOST << EOF
+          cd ~/app3
+          chmod +x build_and_deploy.sh
+          ./build_and_deploy.sh deploy
+          EOF 
