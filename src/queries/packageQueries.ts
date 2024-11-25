@@ -253,3 +253,38 @@ export const setCachedSize = async (
     throw error;
   }
 };
+
+export async function updatePackageMetadata(
+  packageId: string, 
+  name: string | null,
+  version: string | null
+): Promise<void> {
+  const query = `
+    UPDATE public.packages
+    SET name = COALESCE($2, name),
+        version = COALESCE($3, version)
+    WHERE package_id = $1
+  `;
+  
+  const values = [packageId, name, version];
+  await getDbPool().query(query, values);
+}
+
+export async function updatePackageData(
+  packageId: string, 
+  content: string | null,
+  debloat: boolean | null,
+  jsProgram: string | null,
+  url: string | null
+): Promise<void> {
+  const query = `
+    UPDATE public.package_data
+    SET content = COALESCE($2, content),
+        debloat = COALESCE($3, debloat),
+        js_program = COALESCE($4, js_program),
+        url = COALESCE($5, url)
+    WHERE package_id = $1
+  `;
+  const values = [packageId, content, debloat, jsProgram, url];
+  await getDbPool().query(query, values);
+}
