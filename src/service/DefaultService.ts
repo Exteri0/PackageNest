@@ -1,3 +1,4 @@
+
 "use strict";
 
 import { Request, Response, NextFunction, response } from "express";
@@ -846,16 +847,44 @@ export async function packageRetrieve(
  * @param xAuthorization AuthenticationToken
  * @returns Promise<void>
  */
-export function packageUpdate(
+export async function packageUpdate(
   body: Package,
   id: PackageID,
   xAuthorization: AuthenticationToken
 ): Promise<void> {
-  return new Promise(function (resolve) {
-    resolve();
-  });
-}
+  try {
+    if (!id.id) {
+      throw new CustomError("Package ID is required", 400);
+    }
 
+    if (!xAuthorization.token) {
+      throw new CustomError("Authorization token is missing", 401);
+    }
+
+    const { metadata, data } = body;
+
+    if (metadata) {
+      await packageQueries.updatePackageMetadata(
+        id.id,
+        metadata.Name,
+        metadata.Version
+      );
+    }
+
+    if (data) {
+      await packageQueries.updatePackageData(
+        id.id,
+        data.Content,
+        data.debloat,
+        data.JSProgram,
+        data.URL
+      );
+    }
+  } catch (error: any) {
+    console.error("Error in packageUpdate service:", error);
+    throw new CustomError(`Failed to update package: ${error.message}`, 500);
+  }
+}
 /**
  * (BASELINE)
  * Get the packages from the registry.
