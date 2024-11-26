@@ -10,8 +10,9 @@ import "dotenv/config";
 import { getDbPool } from "./databaseConnection.js";
 import * as packageQueries from "../queries/packageQueries.js";
 import { calculateMetrics } from "../Metrics/metricExport.js";
-import { calculateSize } from "../service/packageUtils.js";
+import { calculateSize, compareVersions} from "../service/packageUtils.js";
 import { CustomError, PackageCostDetail } from "../utils/types.js";
+import { updatePackageData,updatePackageMetadata } from "../queries/packageQueries.js";
 import * as crypto from "crypto";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
@@ -848,43 +849,137 @@ export async function packageRetrieve(
  * @returns Promise<void>
  */
 export async function packageUpdate(
-  body: Package,
-  id: PackageID,
-  xAuthorization: AuthenticationToken
-): Promise<void> {
+  Content?: string,
+  URL?: string,
+  debloat?: boolean,
+  JSProgram?: string,
+  customName?: string
+) {
+  let packageName: string | undefined;
+  let packageVersion: string | undefined;
+  let updatedPackageId: string | undefined;
+  let contentBuffer: Buffer | undefined;
+  const debloatVal = debloat ?? false;
+
+  // Validate that either 'Content' or 'URL' is provided, but not both or neither
+  if ((!URL && !Content) || (URL && Content)) {
+    throw new CustomError(
+      "Invalid input: Provide either 'Content' or 'URL', but not both.",
+      400
+    );
+  }
+
+  // Step 1: Handle updates with a URL
+  if (URL) {
+    console.log("Processing package update with URL...");
+    try {
+      if (URL.includes("github.com")) {
+        // Extract repository owner and name from the GitHub URL
+        const repoMatch = URL.match(/github\.com\/([^/]+)\/([^/]+)(?:\/blob\/[^/]+\/.+)?$/);
+        if (!repoMatch) throw new CustomError("Invalid GitHub URL format", 400);
+        const owner = repoMatch[1];
+        const repo = repoMatch[2];
+
+        // Retrieve package information from the repository's package.json
+        const packageInfo = await getPackageInfoRepo(owner, repo);
+        packageName = customName || packageInfo.name;
+        packageVersion = packageInfo.version || "1.0.0";
+        console.log(`Retrieved packageName: ${packageName}, packageVersion: ${packageVersion}`);
+      } else if (URL.includes("npmjs.com")) {
+        // Extract package name from npmjs.com URL
+        const packageNameMatch = URL.match(/npmjs\.com\/package\/([^/]+)/);
+        if (!packageNameMatch) throw new CustomError("Invalid npmjs.com URL format", 400);
+        const packageNameFromURL = packageNameMatch[1];
+
+        // Fetch metadata and tarball from npm registry
+        const registryResponse = await downloadFile(`https://registry.npmjs.org/${packageNameFromURL}`);
+        const registryData = JSON.parse(registryResponse.toString());
+        const latestVersion = registryData["dist-tags"].latest;
+        const tarballUrl = registryData.versions[latestVersion].dist.tarball;
+
+        console.log(`Downloading tarball from npm registry: ${tarballUrl}`);
+        const tarballBuffer = await downloadFile(tarballUrl);
+
+        console.log("Converting tarball to ZIP");
+        const zipBuffer = await convertTarballToZipBuffer(tarballBuffer);
+        packageName = customName || packageNameFromURL;
+        packageVersion = latestVersion;
+        contentBuffer = zipBuffer;
+      } else {
+        throw new CustomError("Unsupported URL format. Provide GitHub or npmjs.com URL.", 400);
+      }
+    } catch (error: any) {
+      console.error("Error occurred while processing URL:", error);
+      throw new CustomError(`Failed to process URL: ${error.message}`, 500);
+    }
+  }
+
+  // Handle updates with Content
+  if (Content) {
+    console.log("Processing package update with Content...");
+    try {
+      // Retrieve package information from the provided zip file content
+      const responseInfo = await getPackageInfoZipFile(Content);
+      packageName = customName || responseInfo.name; // Use customName if provided
+      packageVersion = responseInfo.version || "1.0.0";
+      contentBuffer = Buffer.from(Content, "base64");
+      console.log(`Retrieved packageName: ${packageName}, packageVersion: ${packageVersion}`);
+    } catch (error: any) {
+      console.error("Error occurred while processing Content:", error);
+      throw new CustomError(`Failed to process Content: ${error.message}`, 500);
+    }
+  }
+
+  // Validate package name and version
+  if (!packageName || !packageVersion || !/^\d+\.\d+\.\d+$/.test(packageVersion)) {
+    throw new CustomError("Invalid package name or version.", 400);
+  }
+
+  // Retrieve existing package details
+  const existingPackage = await packageQueries.getPackageByName(packageName);
+  if (!existingPackage) {
+    throw new CustomError("Package not found in the database.", 404);
+  }
+  const existingVersion = existingPackage.version;
+
+  // Ensure the update does not introduce conflicting versions
+  if (!compareVersions(packageVersion, existingVersion)) {
+    throw new CustomError("Invalid version: Update violates versioning rules.", 400);
+  }
+
+  // Generate a new package ID for the updated package
+  updatedPackageId = generateUniqueId(packageName, packageVersion);
+  console.log(`Generated new package ID: ${updatedPackageId}`);
+
+  // S3 Upload for Content or URL
   try {
-    if (!id.id) {
-      throw new CustomError("Package ID is required", 400);
-    }
+    const s3Key = `packages/${packageName}/v${packageVersion}/package.zip`;
+    const s3Params = {
+      Bucket: process.env.S3_BUCKET_NAME!,
+      Key: s3Key,
+      Body: contentBuffer,
+      ContentType: "application/zip",
+    };
 
-    if (!xAuthorization.token) {
-      throw new CustomError("Authorization token is missing", 401);
-    }
-
-    const { metadata, data } = body;
-
-    if (metadata) {
-      await packageQueries.updatePackageMetadata(
-        id.id,
-        metadata.Name,
-        metadata.Version
-      );
-    }
-
-    if (data) {
-      await packageQueries.updatePackageData(
-        id.id,
-        data.Content,
-        data.debloat,
-        data.JSProgram,
-        data.URL
-      );
-    }
+    console.log(`Uploading package to S3 with key: ${s3Key}`);
+    await s3.putObject(s3Params).promise();
+    console.log("Package uploaded to S3 successfully.");
   } catch (error: any) {
-    console.error("Error in packageUpdate service:", error);
-    throw new CustomError(`Failed to update package: ${error.message}`, 500);
+    console.error("Error occurred during S3 upload:", error);
+    throw new CustomError(`Failed to upload to S3: ${error.message}`, 500);
+  }
+
+  // Update Metadata and Data in the Database
+  try {
+    await updatePackageMetadata(updatedPackageId, packageName, packageVersion);
+    await updatePackageData(updatedPackageId, Content ? true : false, debloatVal, JSProgram, URL);
+    console.log("Package metadata and data updated successfully.");
+  } catch (error: any) {
+    console.error("Error occurred during database update:", error);
+    throw new CustomError(`Failed to update package in database: ${error.message}`, 500);
   }
 }
+
 /**
  * (BASELINE)
  * Get the packages from the registry.

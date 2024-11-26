@@ -536,3 +536,12 @@ export async function calculateSize(
     throw new CustomError(`Unexpected error: ${error.message}`, 500);
   }
 }
+export function compareVersions(newVersion: string, oldVersion: string): boolean {
+  const [newMajor, newMinor, newPatch] = newVersion.split('.').map(Number);
+  const [oldMajor, oldMinor, oldPatch] = oldVersion.split('.').map(Number);
+
+  if (newMajor < oldMajor) return false; // Reject if major version is lower
+  if (newMajor === oldMajor && newMinor < oldMinor) return false; // Reject if minor version is lower
+  if (newMajor === oldMajor && newMinor === oldMinor && newPatch < oldPatch) return false; // Reject if patch version is lower
+  return true; // Allow higher or equal versions
+}

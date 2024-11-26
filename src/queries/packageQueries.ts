@@ -255,36 +255,31 @@ export const setCachedSize = async (
 };
 
 export async function updatePackageMetadata(
-  packageId: string, 
-  name: string | null,
-  version: string | null
+  packageId: string,
+  name: string,
+  version: string
 ): Promise<void> {
   const query = `
     UPDATE public.packages
-    SET name = COALESCE($2, name),
-        version = COALESCE($3, version)
-    WHERE package_id = $1
+    SET name = $2, version = $3, updated_at = NOW()
+    WHERE package_id = $1;
   `;
-  
-  const values = [packageId, name, version];
-  await getDbPool().query(query, values);
+  await getDbPool().query(query, [packageId, name, version]);
 }
 
+
 export async function updatePackageData(
-  packageId: string, 
-  content: string | null,
-  debloat: boolean | null,
-  jsProgram: string | null,
-  url: string | null
+  packageId: string,
+  contentType: boolean,
+  debloat: boolean,
+  jsProgram?: string,
+  url?: string
 ): Promise<void> {
   const query = `
     UPDATE public.package_data
-    SET content = COALESCE($2, content),
-        debloat = COALESCE($3, debloat),
-        js_program = COALESCE($4, js_program),
-        url = COALESCE($5, url)
-    WHERE package_id = $1
+    SET content_type = $2, debloat = $3, js_program = $4, url = $5, updated_at = NOW()
+    WHERE package_id = $1;
   `;
-  const values = [packageId, content, debloat, jsProgram, url];
-  await getDbPool().query(query, values);
+  await getDbPool().query(query, [packageId, contentType, debloat, jsProgram, url]);
 }
+
