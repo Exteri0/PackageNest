@@ -97,7 +97,7 @@ CREATE TABLE package_data (
     url TEXT,
     debloat BOOLEAN NOT NULL DEFAULT FALSE,
     js_program TEXT,
-    CHECK(URL IS NOT NULL AND content_type = FALSE)
+    CHECK(URL IS NULL OR content_type = FALSE)
 );
 
 -- Package ratings table
