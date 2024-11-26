@@ -849,6 +849,7 @@ export async function packageRetrieve(
  * @returns Promise<void>
  */
 export async function packageUpdate(
+  id: string,
   Content?: string,
   URL?: string,
   debloat?: boolean,
@@ -861,7 +862,7 @@ export async function packageUpdate(
   let contentBuffer: Buffer | undefined;
   const debloatVal = debloat ?? false;
 
-  // Validate that either 'Content' or 'URL' is provided, but not both or neither
+  // Ensure either 'Content' or 'URL' is provided, but not both or neither
   if ((!URL && !Content) || (URL && Content)) {
     throw new CustomError(
       "Invalid input: Provide either 'Content' or 'URL', but not both.",
@@ -869,7 +870,33 @@ export async function packageUpdate(
     );
   }
 
-  // Step 1: Handle updates with a URL
+  // Fetch the existing package details by ID
+  const pool = getDbPool();
+  const existingPackageQuery = `SELECT name, version, content_type FROM public.packages WHERE package_id = $1`;
+  const existingPackageResult = await pool.query(existingPackageQuery, [id]);
+
+  if (existingPackageResult.rows.length === 0) {
+    throw new CustomError("Package not found.", 404);
+  }
+
+  const existingPackage = existingPackageResult.rows[0];
+  const existingName = existingPackage.name;
+  const existingVersion = existingPackage.version;
+  const existingContentType = existingPackage.content_type;
+
+  console.log(`Existing package details: ${JSON.stringify(existingPackage)}`);
+
+  // Ensure update type matches the existing package
+  if ((Content && !existingContentType) || (URL && existingContentType)) {
+    throw new CustomError(
+      `Invalid update type: Existing package was uploaded with ${
+        existingContentType ? "Content" : "URL"
+      }. Update must match the original type.`,
+      400
+    );
+  }
+
+  // Process update with URL
   if (URL) {
     console.log("Processing package update with URL...");
     try {
@@ -891,30 +918,35 @@ export async function packageUpdate(
         if (!packageNameMatch) throw new CustomError("Invalid npmjs.com URL format", 400);
         const packageNameFromURL = packageNameMatch[1];
 
-        // Fetch metadata and tarball from npm registry
-        const registryResponse = await downloadFile(`https://registry.npmjs.org/${packageNameFromURL}`);
-        const registryData = JSON.parse(registryResponse.toString());
-        const latestVersion = registryData["dist-tags"].latest;
-        const tarballUrl = registryData.versions[latestVersion].dist.tarball;
-
-        console.log(`Downloading tarball from npm registry: ${tarballUrl}`);
-        const tarballBuffer = await downloadFile(tarballUrl);
-
-        console.log("Converting tarball to ZIP");
-        const zipBuffer = await convertTarballToZipBuffer(tarballBuffer);
-        packageName = customName || packageNameFromURL;
-        packageVersion = latestVersion;
-        contentBuffer = zipBuffer;
+        // Fetch package metadata from npm registry
+        const registryUrl = `https://registry.npmjs.org/${packageNameFromURL}`;
+        const registryResponse = await fetch(registryUrl).then((res) => res.json());
+        packageName = customName || registryResponse.name;
+        packageVersion = registryResponse["dist-tags"].latest || "1.0.0";
+        console.log(`Retrieved packageName: ${packageName}, packageVersion: ${packageVersion}`);
       } else {
         throw new CustomError("Unsupported URL format. Provide GitHub or npmjs.com URL.", 400);
       }
+
+      // Download the file and upload to S3
+      console.log("Downloading and uploading package from URL...");
+      const s3Key = `packages/${packageName}/v${packageVersion}/package.zip`;
+      const fileBuffer = await downloadFile(URL); 
+      const s3Params = {
+        Bucket: process.env.S3_BUCKET_NAME!,
+        Key: s3Key,
+        Body: fileBuffer,
+        ContentType: "application/zip",
+      };
+      await s3.putObject(s3Params).promise();
+      console.log("Package uploaded to S3 successfully.");
     } catch (error: any) {
       console.error("Error occurred while processing URL:", error);
       throw new CustomError(`Failed to process URL: ${error.message}`, 500);
     }
   }
 
-  // Handle updates with Content
+  // Process update with Content
   if (Content) {
     console.log("Processing package update with Content...");
     try {
@@ -922,54 +954,43 @@ export async function packageUpdate(
       const responseInfo = await getPackageInfoZipFile(Content);
       packageName = customName || responseInfo.name; // Use customName if provided
       packageVersion = responseInfo.version || "1.0.0";
+
+      // Decode the base64 encoded zip file to a Buffer
       contentBuffer = Buffer.from(Content, "base64");
-      console.log(`Retrieved packageName: ${packageName}, packageVersion: ${packageVersion}`);
+
+      // Upload the package to S3
+      const s3Key = `packages/${packageName}/v${packageVersion}/package.zip`;
+      const s3Params = {
+        Bucket: process.env.S3_BUCKET_NAME!,
+        Key: s3Key,
+        Body: contentBuffer,
+        ContentType: "application/zip",
+      };
+      await s3.putObject(s3Params).promise();
+      console.log("Package uploaded to S3 successfully.");
     } catch (error: any) {
       console.error("Error occurred while processing Content:", error);
       throw new CustomError(`Failed to process Content: ${error.message}`, 500);
     }
   }
 
-  // Validate package name and version
   if (!packageName || !packageVersion || !/^\d+\.\d+\.\d+$/.test(packageVersion)) {
     throw new CustomError("Invalid package name or version.", 400);
   }
 
-  // Retrieve existing package details
-  const existingPackage = await packageQueries.getPackageByName(packageName);
-  if (!existingPackage) {
-    throw new CustomError("Package not found in the database.", 404);
-  }
-  const existingVersion = existingPackage.version;
-
-  // Ensure the update does not introduce conflicting versions
+  // Validate the version update
   if (!compareVersions(packageVersion, existingVersion)) {
-    throw new CustomError("Invalid version: Update violates versioning rules.", 400);
+    throw new CustomError(
+      `Invalid version update: Existing version is ${existingVersion}. Update must not be a lower patch version.`,
+      400
+    );
   }
 
   // Generate a new package ID for the updated package
   updatedPackageId = generateUniqueId(packageName, packageVersion);
   console.log(`Generated new package ID: ${updatedPackageId}`);
 
-  // S3 Upload for Content or URL
-  try {
-    const s3Key = `packages/${packageName}/v${packageVersion}/package.zip`;
-    const s3Params = {
-      Bucket: process.env.S3_BUCKET_NAME!,
-      Key: s3Key,
-      Body: contentBuffer,
-      ContentType: "application/zip",
-    };
-
-    console.log(`Uploading package to S3 with key: ${s3Key}`);
-    await s3.putObject(s3Params).promise();
-    console.log("Package uploaded to S3 successfully.");
-  } catch (error: any) {
-    console.error("Error occurred during S3 upload:", error);
-    throw new CustomError(`Failed to upload to S3: ${error.message}`, 500);
-  }
-
-  // Update Metadata and Data in the Database
+  // Update metadata and data in the database
   try {
     await updatePackageMetadata(updatedPackageId, packageName, packageVersion);
     await updatePackageData(updatedPackageId, Content ? true : false, debloatVal, JSProgram, URL);
@@ -979,7 +1000,6 @@ export async function packageUpdate(
     throw new CustomError(`Failed to update package in database: ${error.message}`, 500);
   }
 }
-
 /**
  * (BASELINE)
  * Get the packages from the registry.

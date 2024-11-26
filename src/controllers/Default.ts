@@ -204,27 +204,36 @@ export const PackageRetrieve = (
     });
 };
 
-export const PackageUpdate = (
+export const PackageUpdate = async (
   req: OpenApiRequest,
   res: Response,
-  next: NextFunction,
-  body: any
-): void => {
-  const xAuthorization: Default.AuthenticationToken = {
-    token: req.headers.authorization
-      ? req.headers.authorization.toString()
-      : "",
-  };
-  const id: Default.PackageID = { id: req.params.name };
-  Default.packageUpdate(body, id, xAuthorization)
-    .then((response: any) => {
-      utils.writeJson(res, response);
-    })
-    .catch((response: any) => {
-      utils.writeJson(res, response);
-    });
-};
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const xAuthorization: Default.AuthenticationToken = {
+      token: req.headers.authorization?.toString() || "",
+    };
+    const id = req.params.id; // Extracted ID from the URL path
+    const body = req.body;
 
+    const response = await Default.packageUpdate(
+      id,
+      body.Content,
+      body.URL,
+      body.debloat,
+      body.JSProgram,
+      body.customName
+    );
+
+    res.status(200).json(response);
+  } catch (error: any) {
+    if (error instanceof CustomError) {
+      res.status(error.status).json({ error: error.message });
+    } else {
+      res.status(500).json({ error: error.message || "An error occurred" });
+    }
+  }
+};
 export const PackagesList = async (
   req: Request,
   res: Response,
