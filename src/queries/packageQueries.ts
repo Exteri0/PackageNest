@@ -255,7 +255,7 @@ export const setCachedSize = async (
 };
 
 export async function insertIntoPackageRatingsQuery(packageId: string, metrics: any): Promise<void> {
-  console.log(`busfactor: Inserting metrics into package_ratings for packageId: ${packageId}`);
+  console.log(`Inserting metrics into package_ratings for packageId: ${packageId}`);
   const dbPool = getDbPool();
 
   const query = `
@@ -322,9 +322,9 @@ export async function insertIntoPackageRatingsQuery(packageId: string, metrics: 
 
   try {
     await dbPool.query(query, values);
-    console.log(`busfactor: Metrics successfully inserted/updated for packageId: ${packageId}`);
+    console.log(`Metrics successfully inserted/updated for packageId: ${packageId}`);
   } catch (error) {
-    console.error(`busfactor: Error inserting metrics into package_ratings for packageId: ${packageId}`, error);
+    console.error(`Error inserting metrics into package_ratings for packageId: ${packageId}`, error);
     throw error;
   }
 }

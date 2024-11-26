@@ -480,15 +480,15 @@ export async function packageCreate(
         };
 
         const repoLink = await extractGithubRepoLink(packageExtractorInput);
-        console.log(`busfactor: Extracted repository link: ${repoLink}`);
+        console.log(`Extracted repository link: ${repoLink}`);
 
         if (repoLink) {
-          console.log("busfactor: Calculating metrics for the package...");
+          console.log("Calculating metrics for the package...");
           metrics = await calculateMetrics(repoLink);
           rating = metrics.NetScore;
-          console.log(`busfactor: Calculated NetScore (rating): ${rating}`);
+          console.log(`Calculated NetScore (rating): ${rating}`);
         } else {
-          console.log("busfactor: Repository link not found in package.json.");
+          console.log("Repository link not found in package.json.");
         }
 
         // Define the S3 key (path) for storing the package
@@ -528,10 +528,10 @@ export async function packageCreate(
       let zipBuffer: Buffer;
 
       try {
-        console.log("busfactor: Calculating metrics for the package...");
+        console.log("Calculating metrics for the package...");
         metrics = await calculateMetrics(URL);
         rating = metrics.NetScore;
-        console.log(`busfactor: Calculated NetScore (rating): ${rating}`);
+        console.log(`Calculated NetScore (rating): ${rating}`);
 
         if (rating < 0.5) {
           throw new CustomError("Rating is below the acceptable threshold (0.5). Upload aborted.", 400);
@@ -626,9 +626,9 @@ export async function packageCreate(
 
       // Insert metrics into the 'package_ratings' table if metrics are available
       if (metrics) {
-        console.log("busfactor: Inserting metrics into the 'package_ratings' table.");
+        console.log("Inserting metrics into the 'package_ratings' table.");
         await packageQueries.insertIntoPackageRatingsQuery(packageId, metrics);
-        console.log("busfactor: Metrics inserted into the 'package_ratings' table.");
+        console.log("Metrics inserted into the 'package_ratings' table.");
       }
 
 
