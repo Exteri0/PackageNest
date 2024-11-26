@@ -87,6 +87,7 @@ CREATE TABLE package_metadata (
     package_id VARCHAR(255) PRIMARY KEY NOT NULL,
     name VARCHAR(255) NOT NULL,
     version VARCHAR(50) NOT NULL,
+    readme TEXT,
     UNIQUE(package_id)
 );
 
@@ -153,6 +154,10 @@ CREATE INDEX idx_package_metadata_package_id ON package_metadata(package_id);
 CREATE INDEX idx_package_data_package_id ON package_data(package_id);
 CREATE INDEX idx_package_ratings_package_id ON package_ratings(package_id);
 CREATE INDEX idx_package_costs_package_id ON package_costs(package_id);
+
+-- Add a full-text search index on the 'readme' column
+CREATE INDEX idx_package_metadata_readme_ft ON package_metadata USING GIN (to_tsvector('english', readme));
+
 
 -- Commit transaction
 COMMIT;

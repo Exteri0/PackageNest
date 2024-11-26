@@ -134,19 +134,25 @@ export const insertPackageQuery = async (
 export const insertIntoMetadataQuery = async (
   packageName: string | undefined,
   packageVersion: string,
-  packageId: string
+  packageId: string,
+  readme: string // Added readme parameter
 ) => {
   const query = `
-      INSERT INTO public.package_metadata (name, version, package_id )
-      VALUES ($1, $2, $3);
+      INSERT INTO public.package_metadata (name, version, package_id, readme)
+      VALUES ($1, $2, $3, $4)
+      ON CONFLICT (package_id) DO UPDATE SET
+        name = EXCLUDED.name,
+        version = EXCLUDED.version,
+        readme = EXCLUDED.readme;
     `;
   try {
-    await getDbPool().query(query, [packageName, packageVersion, packageId]);
+    await getDbPool().query(query, [packageName, packageVersion, packageId, readme]);
   } catch (error: any) {
-    console.error(`Error inserting package metadata into packages: ${error}`);
+    console.error(`Error inserting package metadata into package_metadata: ${error}`);
     throw error;
   }
 };
+
 
 export const insertIntoPackageDataQuery = async (
   packageId: string,

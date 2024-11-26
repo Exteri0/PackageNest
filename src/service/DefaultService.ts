@@ -27,6 +27,11 @@ import {
   convertTarballToZipBuffer
 } from "../utils/retrievePackageJson.js";
 
+import {
+  extractReadme, // Import the README extraction function
+} from "../utils/readmeExtractor.js"; // Adjust the path if necessary
+
+
 const bucketName = process.env.S3_BUCKET_NAME;
 const s3 = new awsSdk.S3(
   {
@@ -361,6 +366,7 @@ export async function packageCreate(
 
   let metrics: any = null;
   let rating: number = 0;
+  let readmeContent: string = '';
 
   // Check that either 'Content' or 'URL' is provided, but not both or neither
   if ((!URL && !Content) || (URL && Content)) {
@@ -483,6 +489,8 @@ export async function packageCreate(
         console.log(`Extracted repository link: ${repoLink}`);
 
         if (repoLink) {
+          readmeContent = await extractReadme({ URL: repoLink });
+          console.log(`Extracted README content FROM CONTENT: ${readmeContent.substring(0, 100)}...`); // Log a snippet of README
           console.log("Calculating metrics for the package...");
           metrics = await calculateMetrics(repoLink);
           rating = metrics.NetScore;
@@ -536,6 +544,9 @@ export async function packageCreate(
         if (rating < 0.5) {
           throw new CustomError("Rating is below the acceptable threshold (0.5). Upload aborted.", 400);
         }
+
+        readmeContent = await extractReadme({URL : URL}); // Added line to extract README
+        console.log(`Extracted README content from URL: ${readmeContent.substring(0, 100)}...`); // Log a snippet of README
 
 
         if (URL.includes("github.com")) {
@@ -611,7 +622,7 @@ export async function packageCreate(
       console.log("Package information inserted into the 'packages' table.");
 
       // Insert metadata into the 'package_metadata' table
-      await packageQueries.insertIntoMetadataQuery(packageName, packageVersion as string, packageId);
+      await packageQueries.insertIntoMetadataQuery(packageName, packageVersion as string, packageId, readmeContent);
       console.log("Package metadata inserted into the 'package_metadata' table.");
 
       // Insert additional data into the 'package_data' table
