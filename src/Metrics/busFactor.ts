@@ -18,7 +18,7 @@ const graphqlWithAuth = graphql.defaults({
 
 interface BusFactorResult {
   BusFactor: number;
-  BusFactor_Latency: number; // in seconds
+  BusFactorLatency: number; // in seconds
 }
 
 function getLatency(startTime: number): number {
@@ -36,7 +36,7 @@ export async function calculateBusFactorMetric(
     const contributors = await fetchContributors(owner, repo);
     if (contributors.length === 0) {
       console.warn('No contributors found. Assigning Bus Factor score of 0.');
-      return { BusFactor: 0, BusFactor_Latency: getLatency(startTime) };
+      return { BusFactor: 0, BusFactorLatency: getLatency(startTime) };
     }
 
     // Calculate total contributions
@@ -64,14 +64,14 @@ export async function calculateBusFactorMetric(
 
     return {
       BusFactor: Number(busFactorScore.toFixed(3)),
-      BusFactor_Latency: getLatency(startTime),
+      BusFactorLatency: getLatency(startTime),
     };
   } catch (error) {
     console.error(
       `Error calculating Bus Factor for ${owner}/${repo}:`,
       error instanceof Error ? error.message : error
     );
-    return { BusFactor: -1, BusFactor_Latency: getLatency(startTime) };
+    return { BusFactor: -1, BusFactorLatency: getLatency(startTime) };
   }
 }
 

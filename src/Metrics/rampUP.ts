@@ -75,7 +75,7 @@ async function extractRepoZip(zipPath: string): Promise<string> {
 export async function calculateRampUpMetric(
   owner: string,
   name: string
-): Promise<{ RampUp: number; RampUp_Latency: number }> {
+): Promise<{ RampUp: number; RampUpLatency: number }> {
   console.log(`Calculating ramp-up metric for ${owner}/${name}`);
   const startTime = performance.now();
 
@@ -95,11 +95,11 @@ export async function calculateRampUpMetric(
 
     return {
       RampUp: Number(rampUpScore.toFixed(3)),
-      RampUp_Latency: getLatency(startTime),
+      RampUpLatency: getLatency(startTime),
     };
   } catch (error) {
     console.error(`Error calculating ramp-up metric:`, error);
-    return { RampUp: -1, RampUp_Latency: 0 };
+    return { RampUp: -1, RampUpLatency: 0 };
   } finally {
     // Step 5: Clean up temporary files
     try {

@@ -11,6 +11,7 @@ import * as packageQueries from "../queries/packageQueries.js";
 import { calculateMetrics } from "../Metrics/metricExport.js";
 import { calculateSize } from "../service/packageUtils.js";
 import { CustomError, PackageCostDetail } from "../utils/types.js";
+import { extractGithubRepoLink } from "../utils/packageExtractor.js"; // Import the extractor
 import * as crypto from "crypto";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
@@ -25,6 +26,11 @@ import {
   downloadFile,
   convertTarballToZipBuffer
 } from "../utils/retrievePackageJson.js";
+
+import {
+  extractReadme, // Import the README extraction function
+} from "../utils/readmeExtractor.js"; // Adjust the path if necessary
+
 
 const bucketName = process.env.S3_BUCKET_NAME;
 const s3 = new awsSdk.S3(
@@ -114,6 +120,13 @@ export interface PackageQuery {
   Version: string;
   ID: string;
   Name: string;
+}
+
+interface InputPackage {
+  Content: string;
+  JSProgram: string | undefined;
+  debloat: boolean;
+  Name: string | undefined;
 }
 
 export function registerUser(body: AuthenticationRequest): Promise<void> {
@@ -276,27 +289,28 @@ export function packageByNameGet(
 export async function packageByRegExGet(
   body: PackageRegEx,
   xAuthorization: AuthenticationToken
-): Promise<Array<any>> {
+): Promise<Array<{ Name: string; Version: string; ID: string }>> {
   console.log("Entered packageByRegExGet function");
   console.log("Received body:", JSON.stringify(body));
-  console.log("Received xAuthorization:", xAuthorization);
+  console.log("Received xAuthorization:", JSON.stringify(xAuthorization));
 
+  // Validate request body
   if (!body || !body.RegEx) {
     console.error("Invalid request body: 'RegEx' is required.");
     throw new CustomError("Invalid request body. 'RegEx' is required.", 400);
   }
 
   try {
-    // Perform a query to retrieve packages whose names match the regular expression
+    // SQL query to search both package names and READMEs using the same RegEx
     const regexQuery = `
-      SELECT name AS Name, version AS Version, package_id AS ID
-      FROM public.packages
-      WHERE name ~ $1
+      SELECT p.name AS name, p.version AS version, p.package_id AS package_id
+      FROM public.packages p
+      JOIN public.package_metadata pm ON p.package_id = pm.package_id
+      WHERE p.name ~ $1 OR pm.readme ~ $1
     `;
     const regexValues = [body.RegEx];
 
-    //  const packageData = await getDbPool().query(insertPackageQuery, [packageName, packageVersion, packageId, false]);
-
+    // Execute the query
     const result = await getDbPool().query(regexQuery, regexValues);
 
     if (result.rows.length === 0) {
@@ -304,7 +318,7 @@ export async function packageByRegExGet(
       return [];
     }
 
-    // Prepare the result list in the specified format
+    // Format the response
     const response = result.rows.map((row: any) => ({
       Name: row.name,
       Version: row.version,
@@ -350,6 +364,10 @@ export async function packageCreate(
   let contentBuffer: Buffer | undefined = undefined; // For holding binary data
   let returnString: string | undefined = undefined;
   let debloatVal: boolean = debloat ?? false;
+
+  let metrics: PackageRating | undefined;
+  let rating: number = 0;
+  let readmeContent: string = '';
 
   // Check that either 'Content' or 'URL' is provided, but not both or neither
   if ((!URL && !Content) || (URL && Content)) {
@@ -460,6 +478,27 @@ export async function packageCreate(
         // Decode the base64 encoded zip file to a Buffer
         contentBuffer = Buffer.from(Content, "base64");
         returnString = Content; // Keep the original base64 string for the response
+        
+        const packageExtractorInput: InputPackage = {
+          Content,
+          JSProgram,
+          debloat: debloatVal,
+          Name: customName,
+        };
+
+        const repoLink = await extractGithubRepoLink(packageExtractorInput);
+        console.log(`Extracted repository link: ${repoLink}`);
+
+        if (repoLink) {
+          readmeContent = await extractReadme({ URL: repoLink });
+          console.log(`Extracted README content FROM CONTENT: ${readmeContent.substring(0, 100)}...`); // Log a snippet of README
+          console.log("Calculating metrics for the package...");
+          metrics = await calculateMetrics(repoLink);
+          rating = metrics.NetScore;
+          console.log(`Calculated NetScore (rating): ${rating}`);
+        } else {
+          console.log("Repository link not found in package.json.");
+        }
 
         // Define the S3 key (path) for storing the package
         const s3Key = `packages/${packageName}/v${packageVersion}/package.zip`;
@@ -498,6 +537,19 @@ export async function packageCreate(
       let zipBuffer: Buffer;
 
       try {
+        console.log("Calculating metrics for the package...");
+        metrics = await calculateMetrics(URL);
+        rating = metrics.NetScore;
+        console.log(`Calculated NetScore (rating): ${rating}`);
+
+        if (rating < 0.5) {
+          throw new CustomError("Rating is below the acceptable threshold (0.5). Upload aborted.", 400);
+        }
+
+        readmeContent = await extractReadme({URL : URL}); // Added line to extract README
+        console.log(`Extracted README content from URL: ${readmeContent.substring(0, 100)}...`); // Log a snippet of README
+
+
         if (URL.includes("github.com")) {
           // Extract repo owner and name
           const repoMatch = URL.match(/github\.com\/([^/]+)\/([^/]+)(?:\/blob\/[^/]+\/.+)?$/);
@@ -571,7 +623,7 @@ export async function packageCreate(
       console.log("Package information inserted into the 'packages' table.");
 
       // Insert metadata into the 'package_metadata' table
-      await packageQueries.insertIntoMetadataQuery(packageName, packageVersion as string, packageId);
+      await packageQueries.insertIntoMetadataQuery(packageName, packageVersion as string, packageId, readmeContent);
       console.log("Package metadata inserted into the 'package_metadata' table.");
 
       // Insert additional data into the 'package_data' table
@@ -583,6 +635,14 @@ export async function packageCreate(
         JSProgram
       );
       console.log("Package data inserted into the 'package_data' table.");
+
+      // Insert metrics into the 'package_ratings' table if metrics are available
+      if (metrics) {
+        console.log("Inserting metrics into the 'package_ratings' table.");
+        await packageQueries.insertIntoPackageRatingsQuery(packageId, metrics);
+        console.log("Metrics inserted into the 'package_ratings' table.");
+      }
+
 
       console.log("Package and metadata registered successfully.");
 

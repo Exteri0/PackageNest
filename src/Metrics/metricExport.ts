@@ -1,4 +1,4 @@
-// index.ts
+// metricExports.ts
 
 import { fetchRepoInfo } from "./infoRepo.js";
 import { calculateRampUpMetric } from "./rampUP.js";
@@ -8,8 +8,26 @@ import { calculateLicenseMetric } from "./license.js";
 import { calculatePinningMetric } from "./goodPinning.js";
 import { calculatePullRequestMetric } from "./PullRequest.js";
 import { calculateBusFactorMetric } from './busFactor.js'; // Import the new function
+import { CustomError } from '../utils/types.js'; // Ensure CustomError is imported
 
-
+export interface PackageRating {
+  CorrectnessLatency: number;
+  RampUpLatency: number;
+  LicenseScore: number;
+  BusFactorLatency: number;
+  LicenseScoreLatency: number;
+  PullRequest: number;
+  PullRequestLatency: number;
+  GoodPinningPractice: number;
+  GoodPinningPracticeLatency: number;
+  Correctness: number;
+  ResponsiveMaintainerLatency: number;
+  NetScoreLatency: number;
+  NetScore: number;
+  ResponsiveMaintainer: number;
+  RampUp: number;
+  BusFactor: number;
+}
 
 function getLatency(startTime: number): number {
   return Number(((performance.now() - startTime) / 1000).toFixed(3));
@@ -36,22 +54,22 @@ export function calculateNetScore(
   };
 }
 
-export async function calculateMetrics(input: string) {
+export async function calculateMetrics(input: string): Promise<PackageRating> {
   try {
     console.log("Starting metric calculation");
     const { owner, name } = await fetchRepoInfo(input);
     console.log(`Owner: ${owner}, Name: ${name}`);
     const startTime = performance.now();
 
-    // Calculate metrics
+    // Calculate metrics concurrently
     const [
-      { License, License_Latency },
-      { ResponsiveMaintainer, ResponsiveMaintainer_Latency },
-      { Correctness, Correctness_Latency },
-      { RampUp, RampUp_Latency },
+      { LicenseScore, LicenseScoreLatency },
+      { ResponsiveMaintainer, ResponsiveMaintainerLatency },
+      { Correctness, CorrectnessLatency },
+      { RampUp, RampUpLatency },
       { GoodPinningPractice, GoodPinningPracticeLatency },
       { PullRequest, PullRequestLatency },
-      { BusFactor, BusFactor_Latency },
+      { BusFactor, BusFactorLatency },
     ] = await Promise.all([
       calculateLicenseMetric(owner, name),
       calculateResponsivenessMetric(owner, name),
@@ -62,50 +80,44 @@ export async function calculateMetrics(input: string) {
       calculateBusFactorMetric(owner, name),
     ]);
 
+    // Correct the argument order: BusFactor before PullRequest
     let { NetScore } = calculateNetScore(
-      License,
+      LicenseScore,
       RampUp,
       Correctness,
       ResponsiveMaintainer,
       GoodPinningPractice,
-      PullRequest,
-      BusFactor
+      BusFactor, // BusFactor is the 6th parameter
+      PullRequest // PullRequest is the 7th parameter
     );
-    const NetScore_Latency = getLatency(startTime);
+
+    const NetScoreLatency = getLatency(startTime);
     NetScore = Number(NetScore.toFixed(3));
 
-    const data = {
-      URL: input,
+    const data: PackageRating = {
       NetScore,
-      NetScore_Latency,
+      NetScoreLatency,
       RampUp,
-      RampUp_Latency,
+      RampUpLatency,
       Correctness,
-      Correctness_Latency,
+      CorrectnessLatency,
       BusFactor,
-      BusFactor_Latency,
+      BusFactorLatency,
       PullRequest,
       PullRequestLatency,
       GoodPinningPractice,
       GoodPinningPracticeLatency,
       ResponsiveMaintainer,
-      ResponsiveMaintainer_Latency,
-      License,
-      License_Latency,
+      ResponsiveMaintainerLatency,
+      LicenseScore,
+      LicenseScoreLatency,
     };
 
     console.log("Metrics calculated:", data);
     return data;
   } catch (error: any) {
     console.error(`Error calculating metrics: ${error.message}`);
+    // Throw a CustomError to ensure the function does not return undefined
+    throw new CustomError(`Failed to calculate metrics: ${error.message}`, 500);
   }
 }
-
-// if (require.main === module) {
-//   const input = process.argv[2];
-//   if (!input) {
-//     console.error("Please provide a URL or zip file as input.");
-//     process.exit(1);
-//   }
-//   calculateMetrics(input);
-// }
