@@ -365,7 +365,7 @@ export async function packageCreate(
   let returnString: string | undefined = undefined;
   let debloatVal: boolean = debloat ?? false;
 
-  let metrics: any = null;
+  let metrics: PackageRating | undefined;
   let rating: number = 0;
   let readmeContent: string = '';
 
