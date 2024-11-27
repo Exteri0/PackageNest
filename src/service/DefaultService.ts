@@ -289,27 +289,28 @@ export function packageByNameGet(
 export async function packageByRegExGet(
   body: PackageRegEx,
   xAuthorization: AuthenticationToken
-): Promise<Array<any>> {
+): Promise<Array<{ Name: string; Version: string; ID: string }>> {
   console.log("Entered packageByRegExGet function");
   console.log("Received body:", JSON.stringify(body));
-  console.log("Received xAuthorization:", xAuthorization);
+  console.log("Received xAuthorization:", JSON.stringify(xAuthorization));
 
+  // Validate request body
   if (!body || !body.RegEx) {
     console.error("Invalid request body: 'RegEx' is required.");
     throw new CustomError("Invalid request body. 'RegEx' is required.", 400);
   }
 
   try {
-    // Perform a query to retrieve packages whose names match the regular expression
+    // SQL query to search both package names and READMEs using the same RegEx
     const regexQuery = `
-      SELECT name AS Name, version AS Version, package_id AS ID
-      FROM public.packages
-      WHERE name ~ $1
+      SELECT p.name AS name, p.version AS version, p.package_id AS package_id
+      FROM public.packages p
+      JOIN public.package_metadata pm ON p.package_id = pm.package_id
+      WHERE p.name ~ $1 OR pm.readme ~ $1
     `;
     const regexValues = [body.RegEx];
 
-    //  const packageData = await getDbPool().query(insertPackageQuery, [packageName, packageVersion, packageId, false]);
-
+    // Execute the query
     const result = await getDbPool().query(regexQuery, regexValues);
 
     if (result.rows.length === 0) {
@@ -317,7 +318,7 @@ export async function packageByRegExGet(
       return [];
     }
 
-    // Prepare the result list in the specified format
+    // Format the response
     const response = result.rows.map((row: any) => ({
       Name: row.name,
       Version: row.version,
