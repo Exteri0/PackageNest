@@ -1,6 +1,8 @@
 import { get } from "http";
 import { getDbPool } from "../service/databaseConnection.js";
 import "dotenv/config";
+import bcrypt from "bcrypt";
+
 
 export async function executeSqlFile(): Promise<void> {
   try {
@@ -15,6 +17,8 @@ export async function executeSqlFile(): Promise<void> {
     console.error("Error executing SQL file:", err);
   }
 }
+
+const hashedPassword = await bcrypt.hash("admin", 10);;
 
 const RemoveAll = `
 DO $$ DECLARE
@@ -60,6 +64,9 @@ CREATE TABLE users (
     isBackend BOOLEAN NOT NULL DEFAULT FALSE
 );
 -- ROLE VARCHAR(10) NOT NULL CHECK (ROLE IN ('BACKEND', 'ADMIN', 'DEVELOPER'))
+
+INSERT INTO users (name, password_hash, isAdmin, isBackend) VALUES ('James D', ${hashedPassword}, TRUE, TRUE);
+
 
 -- Authentication tokens table
 CREATE TABLE authentication_tokens (
