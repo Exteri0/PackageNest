@@ -16,7 +16,7 @@ export async function getPackages(
     queryText += ` WHERE ${conditions.join(" AND ")}`;
   }
 
-  queryText += ` ORDER BY id LIMIT $${queryParams.length + 1} OFFSET $${
+  queryText += ` ORDER BY package_id LIMIT $${queryParams.length + 1} OFFSET $${
     queryParams.length + 2
   }`;
   const finalQueryParams = [...queryParams, limit, offset];
@@ -31,7 +31,7 @@ export async function getPackages(
 // Retrieve a package by ID
 // needs to be updated to retrieve dependencies as well (a list of dependency package ids)
 export const getPackageById = async (packageId: string) => {
-  const query = `SELECT * FROM public."packages" WHERE id = $1`;
+  const query = `SELECT * FROM public."packages" WHERE pacakage_id = $1`;
   try {
     const res = await getDbPool().query(query, [packageId]);
     return res.rows[0];
@@ -47,7 +47,7 @@ export const insertPackage = async (
   packageVersion: string,
   score: number = 0.25
 ) => {
-  const query = `INSERT INTO public."packages" (name, version, score) VALUES ($1, $2, $3) RETURNING id;`; // Change public."packages" to the tables you will insert into
+  const query = `INSERT INTO public."packages" (name, version, score) VALUES ($1, $2, $3) RETURNING package_id;`; // Change public."packages" to the tables you will insert into
   try {
     const res = await getDbPool().query(query, [
       packageName,
@@ -75,7 +75,7 @@ export const getPackageByName = async (name: string) => {
 
 // Package version update
 export const updatePackageVersion = async (name: string, version: string) => {
-  const query = `UPDATE public."packages" SET version = $1, updated_at = NOW() WHERE id = $2;`;
+  const query = `UPDATE public."packages" SET version = $1, updated_at = NOW() WHERE package_id = $2;`;
   try {
     await getDbPool().query(query, [version, name]);
   } catch (error) {
