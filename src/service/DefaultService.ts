@@ -15,6 +15,7 @@ import { extractGithubRepoLink } from "../utils/packageExtractor.js"; // Import 
 import * as crypto from "crypto";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
+import { convertNpmUrlToGitHubUrl } from '../utils/urlConverter.js'; // Import the helper function
 import {
   createUser,
   getAllUsers,
@@ -382,6 +383,10 @@ export async function packageCreate(
       console.log("Processing package creation with URL");
 
       try {
+        if (URL.includes("npmjs.com")) {
+          URL = await convertNpmUrlToGitHubUrl(URL);
+          console.log(`Converted npmjs.com URL to GitHub URL: ${URL}`);
+        }
         if (URL.includes("github.com")) {
           // Extract repository owner and name from the GitHub URL
           const repoMatch = URL.match(/github\.com\/([^/]+)\/([^/]+)(?:\/blob\/[^/]+\/.+)?$/);
@@ -394,18 +399,7 @@ export async function packageCreate(
           packageName = packageInfo.name;
           packageVersion = packageInfo.version || "1.0.0";
           console.log(`Retrieved packageName: ${packageName}, packageVersion: ${packageVersion}`);
-        } else if (URL.includes("npmjs.com")) {
-          // Extract package name from npmjs.com URL
-          const packageNameMatch = URL.match(/npmjs\.com\/package\/([^/]+)/);
-          if (!packageNameMatch) throw new CustomError("Invalid npmjs.com URL format", 400);
-          const packageNameFromURL = packageNameMatch[1];
-
-          // Assuming latest version; alternatively, allow specifying version
-          const packageInfo = await getPackageInfoRepo(packageNameFromURL, ""); // Adjust if necessary
-          packageName = packageInfo.name;
-          packageVersion = packageInfo.version || "1.0.0";
-          console.log(`Retrieved packageName: ${packageName}, packageVersion: ${packageVersion}`);
-        } else {
+        }  else {
           throw new CustomError("Unsupported URL format. Please provide a GitHub or npmjs.com URL.", 400);
         }
       } catch (error: any) {
@@ -549,7 +543,10 @@ export async function packageCreate(
         readmeContent = await extractReadme({URL : URL}); // Added line to extract README
         console.log(`Extracted README content from URL: ${readmeContent.substring(0, 100)}...`); // Log a snippet of README
 
-
+        if (URL.includes("npmjs.com")) {
+          URL = await convertNpmUrlToGitHubUrl(URL);
+          console.log(`Converted npmjs.com URL to GitHub URL: ${URL}`);
+        }
         if (URL.includes("github.com")) {
           // Extract repo owner and name
           const repoMatch = URL.match(/github\.com\/([^/]+)\/([^/]+)(?:\/blob\/[^/]+\/.+)?$/);
@@ -562,26 +559,7 @@ export async function packageCreate(
           // Download the repository zip file
           downloadBuffer = await downloadFile(apiUrl);
           zipBuffer = downloadBuffer; // GitHub provides ZIP directly
-        } else if (URL.includes("npmjs.com")) {
-          // Extract package name from npmjs.com URL
-          const packageNameMatch = URL.match(/npmjs\.com\/package\/([^/]+)/);
-          if (!packageNameMatch) throw new CustomError("Invalid npmjs.com URL format", 400);
-          const packageNameFromURL = packageNameMatch[1];
-
-          // Fetch package metadata from npm registry
-          const registryUrl = `https://registry.npmjs.org/${packageNameFromURL}`;
-          const registryResponse = await axios.get(registryUrl);
-          const latestVersion = registryResponse.data["dist-tags"].latest;
-          const tarballUrl = registryResponse.data.versions[latestVersion].dist.tarball;
-
-          console.log(`Downloading tarball from npm registry: ${tarballUrl}`);
-          // Download the tarball
-          const tarballBuffer = await downloadFile(tarballUrl);
-
-          console.log("Converting tarball to ZIP");
-          // Convert tarball to ZIP
-          zipBuffer = await convertTarballToZipBuffer(tarballBuffer);
-        } else {
+        }  else {
           throw new CustomError("Unsupported URL format. Please provide a GitHub or npmjs.com URL.", 400);
         }
 
@@ -768,42 +746,42 @@ export async function packageRate(
   id: PackageID,
   xAuthorization: AuthenticationToken
 ): Promise<PackageRating> { 
-  const testOutput: any = await calculateMetrics("https://github.com/hasansultan92/watch.js");
-  let response: PackageRating = {
-    GoodPinningPractice: 0,
-    CorrectnessLatency: 0,
-    PullRequestLatency: 0,
-    RampUpLatency: 0,
-    PullRequest: 0,
-    LicenseScore: 0,
-    BusFactorLatency: 0,
-    LicenseScoreLatency: 0,
-    GoodPinningPracticeLatency: 0,
-    Correctness: 0,
-    ResponsiveMaintainerLatency: 0,
-    NetScoreLatency: 0,
-    NetScore: 0,
-    ResponsiveMaintainer: 0,
-    RampUp: 0,
-    BusFactor: 0,
-  };
-  response.BusFactor = testOutput.BusFactor;
-  response.Correctness = testOutput.Correctness;
-  response.GoodPinningPractice = testOutput.GoodPinningPractice;
-  response.LicenseScore = testOutput.License;
-  response.NetScore = testOutput.NetScore;
-  response.PullRequest = testOutput.PullRequest;
-  response.RampUp = testOutput.RampUp;
-  response.ResponsiveMaintainer = testOutput.ResponsiveMaintainer;
-  response.BusFactorLatency = testOutput.BusFactor_Latency;
-  response.CorrectnessLatency = testOutput.Correctness_Latency;
-  response.GoodPinningPracticeLatency = testOutput.GoodPinningPracticeLatency;
-  response.LicenseScoreLatency = testOutput.License_Latency;
-  response.NetScoreLatency = testOutput.NetScore_Latency;
-  response.PullRequestLatency = testOutput.PullRequestLatency;
-  response.RampUpLatency = testOutput.RampUp_Latency;
-  response.ResponsiveMaintainerLatency = testOutput.ResponsiveMaintainer_Latency;
-  return Promise.resolve(response);
+  try {
+    console.log(`ID inputted: ${id.id}`)
+    const ratings = await packageQueries.getPackageRatings(id.id);
+    if (!ratings) {
+      console.error(`Package ratings not found for ID: ${id.id}`);
+      throw new CustomError("Package ratings not found.", 404);
+    }
+
+    const response: PackageRating = {
+      GoodPinningPractice: ratings.good_pinning_practice,
+      CorrectnessLatency: ratings.correctness_latency,
+      PullRequestLatency: ratings.pull_request_latency,
+      RampUpLatency: ratings.ramp_up_latency,
+      PullRequest: ratings.pull_request,
+      LicenseScore: ratings.license_score,
+      BusFactorLatency: ratings.bus_factor_latency,
+      LicenseScoreLatency: ratings.license_score_latency,
+      GoodPinningPracticeLatency: ratings.good_pinning_practice_latency,
+      Correctness: ratings.correctness,
+      ResponsiveMaintainerLatency: ratings.responsive_maintainer_latency,
+      NetScoreLatency: ratings.net_score_latency,
+      NetScore: ratings.net_score,
+      ResponsiveMaintainer: ratings.responsive_maintainer,
+      RampUp: ratings.ramp_up,
+      BusFactor: ratings.bus_factor,
+    };
+
+    console.log(`Retrieved ratings for package ID ${id.id}:`, response);
+    return response;
+  } catch (error: any) {
+    console.error("Error occurred in packageRate:", error);
+    if (error instanceof CustomError) {
+      throw error;
+    }
+    throw new CustomError("Failed to retrieve package rating.", 500);
+  }
 }
 
 /**

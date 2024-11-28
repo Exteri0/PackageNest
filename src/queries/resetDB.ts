@@ -65,8 +65,6 @@ CREATE TABLE users (
 );
 -- ROLE VARCHAR(10) NOT NULL CHECK (ROLE IN ('BACKEND', 'ADMIN', 'DEVELOPER'))
 
-INSERT INTO users (name, password_hash, isAdmin, isBackend) VALUES ('James D', ${hashedPassword}, TRUE, TRUE);
-
 
 -- Authentication tokens table
 CREATE TABLE authentication_tokens (

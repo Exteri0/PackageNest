@@ -163,7 +163,8 @@ export const PackageRate = async (
       ? req.headers.authorization.toString()
       : "",
   };
-  const id: Default.PackageID = { id: req.params.name };
+  console.log(`ID IN DEFAULTTS: ${req.params}`)
+  const id: Default.PackageID = { id: req.params.id };
   try {
     const xAuthorization: Default.AuthenticationToken = {
       token: req.headers.authorization?.toString() ?? "",

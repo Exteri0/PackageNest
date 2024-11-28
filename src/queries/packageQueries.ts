@@ -334,3 +334,49 @@ export async function insertIntoPackageRatingsQuery(packageId: string, metrics: 
     throw error;
   }
 }
+
+
+// queries/packageQueries.ts
+
+export interface PackageRatings {
+  bus_factor: number;
+  bus_factor_latency: number;
+  correctness: number;
+  correctness_latency: number;
+  ramp_up: number;
+  ramp_up_latency: number;
+  responsive_maintainer: number;
+  responsive_maintainer_latency: number;
+  license_score: number;
+  license_score_latency: number;
+  good_pinning_practice: number;
+  good_pinning_practice_latency: number;
+  pull_request: number;
+  pull_request_latency: number;
+  net_score: number;
+  net_score_latency: number;
+}
+
+export async function getPackageRatings(packageId: string): Promise<PackageRatings | null> {
+  const query = `
+    SELECT 
+      bus_factor, bus_factor_latency,
+      correctness, correctness_latency,
+      ramp_up, ramp_up_latency,
+      responsive_maintainer, responsive_maintainer_latency,
+      license_score, license_score_latency,
+      good_pinning_practice, good_pinning_practice_latency,
+      pull_request, pull_request_latency,
+      net_score, net_score_latency
+    FROM package_ratings
+    WHERE package_id = $1
+  `;
+  const values = [packageId];
+  const result = await getDbPool().query(query, values);
+  console.log(`ID used: ${packageId}`);
+  console.log(`Query result: ${JSON.stringify(result.rows)}`);
+  if (result.rows.length === 0) {
+    return null;
+  }
+  return result.rows[0];
+}
