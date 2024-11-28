@@ -349,6 +349,28 @@ export function getUsers(
     utils.writeJson(res, response);
   });
 }
+
+export const populate = (
+  req: OpenApiRequest,
+  res: Response,
+  next: NextFunction
+): void => {
+  const xAuthorization: Default.AuthenticationToken = {
+    token: req.headers.authorization
+      ? req.headers.authorization.toString()
+      : "",
+  };
+  Default.populatePackages(xAuthorization)
+    .then((response: any) => {
+      utils.writeJson(res, response);
+    })
+    .catch((response: any) => {
+      utils.writeJson(res, response);
+    });
+};
+  
+
+
 /* export const testMetricNameGET = (
   req: OpenApiRequest,
   res: Response,

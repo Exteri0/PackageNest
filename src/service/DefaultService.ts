@@ -1165,3 +1165,35 @@ export function testGET(
     resolve(examples["application/json"]);
   });
 }
+
+export async function populatePackages(xAuthorization: AuthenticationToken): Promise<any> {
+  try {
+    // Define the package URLs to populate
+    const urls = [
+      "https://www.npmjs.com/package/browserify",
+      "https://github.com/nullivex/nodist"
+    ];
+
+    // Map each URL to a promise, correctly passing positional parameters
+    const packagePromises = urls.map(async (url) => {
+      try {
+        // Call packageCreate with undefined for Content and pass URL as the second parameter
+        const result = await packageCreate(undefined, url, false, undefined, undefined);
+        return { url, success: true, result };
+      } catch (error: any) {
+        console.error(`Error creating package for URL ${url}:`, error);
+        return { url, success: false, error: error.message };
+      }
+    });
+
+    // Execute all package creation promises concurrently
+    const results = await Promise.all(packagePromises);
+
+    // Log success and return the results
+    console.log(`Added links successfully`);
+    return results; // Ensure that results are returned for the controller to handle
+  } catch (error: any) {
+    console.error("Error in populatePackages service function:", error);
+    throw error; // Re-throw the error to be handled by the controller
+  }
+}
