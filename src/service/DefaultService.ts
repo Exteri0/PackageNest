@@ -835,7 +835,7 @@ export async function packageRetrieve(
 
     // Construct the S3 key to retrieve the zip file based on package_id
     //const s3Key = `packages/${packageId}/v${packageVersion}/package.zip`;
-    const s3Key = `packages/${metadata.packageid}/v${metadata.packageversion}/package.zip`;
+    const s3Key = `packages/${metadata.packagename}/v${metadata.packageversion}/package.zip`;
     const s3Params = {
       Bucket: bucketName,
       Key: s3Key,
