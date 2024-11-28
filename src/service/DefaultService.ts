@@ -9,7 +9,7 @@ import "dotenv/config";
 import { getDbPool } from "./databaseConnection.js";
 import * as packageQueries from "../queries/packageQueries.js";
 import { calculateMetrics } from "../Metrics/metricExport.js";
-import { calculateSize } from "../service/packageUtils.js";
+import { calculateSize, debloatPackage, generateUniqueId } from "../service/packageUtils.js";
 import { CustomError, PackageCostDetail } from "../utils/types.js";
 import { extractGithubRepoLink } from "../utils/packageExtractor.js"; // Import the extractor
 import * as crypto from "crypto";
@@ -334,23 +334,19 @@ export async function packageByRegExGet(
   }
 }
 
+
+
 /**
- * Generates a unique numerical ID based on package name and version.
- * The ID is stored as a string.
- * @param {string} name - Package name
- * @param {string} version - Package version in "x.y.z" format
- * @returns {string} - Unique ID as a string
+ * Creates a new package by processing either uploaded content or a repository URL.
+ * Optionally debloats the package by minifying JavaScript files.
+ * @param Content - Base64-encoded string of the ZIP file.
+ * @param URL - URL of the package repository (GitHub or npmjs.com).
+ * @param debloat - Boolean flag to indicate whether debloating should be performed.
+ * @param JSProgram - Optional JavaScript program related to the package.
+ * @param customName - Optional custom name for the package.
+ * @returns An object containing metadata and data about the uploaded package.
+ * @throws CustomError if any step fails.
  */
-function generateUniqueId(name: string, version: string): string {
-  // Create a SHA-256 hash of the name and version
-  const hash = crypto.createHash("sha256").update(`${name}@${version}`).digest("hex");
-
-  // Convert the first 12 characters of the hash to a numerical string
-  const numericId = BigInt("0x" + hash.slice(0, 12)).toString();
-
-  return numericId;
-}
-
 export async function packageCreate(
   Content?: string,
   URL?: string,
@@ -366,9 +362,47 @@ export async function packageCreate(
   let returnString: string | undefined = undefined;
   let debloatVal: boolean = debloat ?? false;
 
-  let metrics: PackageRating | undefined;
+  let metrics: any; // Existing type from your code
   let rating: number = 0;
   let readmeContent: string = '';
+
+  // Helper function to handle upload and optional debloating
+  async function handleUpload(
+    packageName: string,
+    packageVersion: string,
+    zipBuffer: Buffer,
+    debloatVal: boolean
+  ): Promise<{ returnString: string; s3Key: string }> {
+    let finalBuffer = zipBuffer;
+    let s3Key: string;
+
+    if (debloatVal) {
+      console.log("Debloating is enabled. Starting the debloating process...");
+      finalBuffer = await debloatPackage(zipBuffer);
+      console.log("Debloating completed successfully.");
+      s3Key = `packages/${packageName}/v${packageVersion}/package-debloated.zip`;
+    } else {
+      s3Key = `packages/${packageName}/v${packageVersion}/package.zip`;
+    }
+
+    // Convert the Buffer to a base64 encoded string for the response
+    const returnString = finalBuffer.toString("base64");
+
+    // Prepare parameters for uploading to S3
+    const s3Params = {
+      Bucket: bucketName as string,
+      Key: s3Key,
+      Body: finalBuffer,
+      ContentType: "application/zip",
+    };
+
+    console.log("Uploading package to S3 with key:", s3Key);
+    // Upload the package content to S3
+    await s3.putObject(s3Params).promise();
+    console.log("Package uploaded to S3 successfully.");
+
+    return { returnString, s3Key };
+  }
 
   // Check that either 'Content' or 'URL' is provided, but not both or neither
   if ((!URL && !Content) || (URL && Content)) {
@@ -399,7 +433,7 @@ export async function packageCreate(
           packageName = packageInfo.name;
           packageVersion = packageInfo.version || "1.0.0";
           console.log(`Retrieved packageName: ${packageName}, packageVersion: ${packageVersion}`);
-        }  else {
+        } else {
           throw new CustomError("Unsupported URL format. Please provide a GitHub or npmjs.com URL.", 400);
         }
       } catch (error: any) {
@@ -455,7 +489,9 @@ export async function packageCreate(
       throw new CustomError("Package already exists.", 409);
     }
 
-    // If 'Content' is provided (uploading a zip file directly)
+    // Initialize variables for S3 upload
+    let zipBuffer: Buffer = new Buffer('', 'base64');
+
     if (Content && !URL) {
       console.log("Entered packageCreate service function with Content");
       console.log(
@@ -471,9 +507,9 @@ export async function packageCreate(
       try {
         // Decode the base64 encoded zip file to a Buffer
         contentBuffer = Buffer.from(Content, "base64");
-        returnString = Content; // Keep the original base64 string for the response
-        
-        const packageExtractorInput: InputPackage = {
+        zipBuffer = contentBuffer;
+
+        const packageExtractorInput = {
           Content,
           JSProgram,
           debloat: debloatVal,
@@ -494,24 +530,9 @@ export async function packageCreate(
           console.log("Repository link not found in package.json.");
         }
 
-        // Define the S3 key (path) for storing the package
-        const s3Key = `packages/${packageName}/v${packageVersion}/package.zip`;
-
-        // Prepare parameters for uploading to S3
-        const s3Params = {
-          Bucket: bucketName,
-          Key: s3Key,
-          Body: contentBuffer, // Upload the decoded zip file
-          ContentType: "application/zip",
-        };
-
-        console.log("Uploading package to S3 with key:", s3Key);
-        // Upload the package content to S3
-        await s3.putObject(s3Params).promise();
-        console.log("Package uploaded to S3 successfully.");
       } catch (error: any) {
-        console.error("Error occurred in packageCreate (S3 Upload):", error);
-        throw new CustomError(`Failed to upload content to S3`, 500);
+        console.error("Error occurred in packageCreate (Content Processing):", error);
+        throw new CustomError(`Failed to process package content: ${error.message}`, 500);
       }
     }
     // If 'URL' is provided (downloading from GitHub or npmjs.com)
@@ -526,10 +547,6 @@ export async function packageCreate(
         })
       );
 
-      // Define variables for S3 upload
-      let downloadBuffer: Buffer;
-      let zipBuffer: Buffer;
-
       try {
         console.log("Calculating metrics for the package...");
         metrics = await calculateMetrics(URL);
@@ -540,7 +557,7 @@ export async function packageCreate(
           throw new CustomError("Rating is below the acceptable threshold (0.5). Upload aborted.", 400);
         }
 
-        readmeContent = await extractReadme({URL : URL}); // Added line to extract README
+        readmeContent = await extractReadme({ URL: URL }); // Extract README
         console.log(`Extracted README content from URL: ${readmeContent.substring(0, 100)}...`); // Log a snippet of README
 
         if (URL.includes("npmjs.com")) {
@@ -557,41 +574,36 @@ export async function packageCreate(
 
           console.log(`Downloading ZIP from GitHub: ${apiUrl}`);
           // Download the repository zip file
-          downloadBuffer = await downloadFile(apiUrl);
-          zipBuffer = downloadBuffer; // GitHub provides ZIP directly
-        }  else {
+          zipBuffer = await downloadFile(apiUrl);
+        } else {
           throw new CustomError("Unsupported URL format. Please provide a GitHub or npmjs.com URL.", 400);
         }
 
-        // Convert the Buffer to a base64 encoded string for the response
-        returnString = zipBuffer.toString("base64");
-
-        // Define the S3 key (path) for storing the package
-        const s3Key = `packages/${packageName}/v${packageVersion}/package.zip`;
-
-        // Prepare parameters for uploading to S3
-        const s3Params = {
-          Bucket: bucketName,
-          Key: s3Key,
-          Body: zipBuffer, // Upload the zip file content directly
-          ContentType: "application/zip",
-        };
-
-        console.log("Uploading package from URL to S3 with key:", s3Key);
-        // Upload the package content to S3
-        await s3.putObject(s3Params).promise();
-        console.log("Package uploaded to S3 successfully.");
       } catch (error: any) {
-        console.error("Error downloading or uploading file from URL:", error);
+        console.error("Error occurred in packageCreate (URL Processing):", error);
         throw new CustomError(
-          `Failed to download or upload package from URL: ${error.message}`,
+          `Failed to process package from URL: ${error.message}`,
           500
         );
       }
     }
 
+    // Handle upload and debloating
     try {
-      // Insert the package into the 'packages' table
+      const { returnString: uploadedReturn, s3Key } = await handleUpload(
+        packageName,
+        packageVersion as string,
+        zipBuffer as Buffer,
+        debloatVal
+      );
+      returnString = uploadedReturn;
+    } catch (error: any) {
+      console.error("Error during debloating and upload:", error);
+      throw new CustomError(`Failed to debloat and upload package: ${error.message}`, 500);
+    }
+
+    // Insert the package into the 'packages' table
+    try {
       await packageQueries.insertPackageQuery(
         packageName,
         packageVersion as string,
@@ -620,7 +632,6 @@ export async function packageCreate(
         await packageQueries.insertIntoPackageRatingsQuery(packageId, metrics);
         console.log("Metrics inserted into the 'package_ratings' table.");
       }
-
 
       console.log("Package and metadata registered successfully.");
 

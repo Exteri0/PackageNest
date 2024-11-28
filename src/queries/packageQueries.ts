@@ -47,7 +47,7 @@ export const insertPackage = async (
   packageVersion: string,
   score: number = 0.25
 ) => {
-  const query = `INSERT INTO public."packages" (name, version, score) VALUES ($1, $2, $3) RETURNING package_id;`; // Change public."packages" to the tables you will insert into
+  const query = `INSERT INTO public."packages" (name, version, score) VALUES ($1, $2, $3) RETURNING package_id;`; // Change public."packages". to the tables you will insert into
   try {
     const res = await getDbPool().query(query, [
       packageName,
@@ -102,7 +102,7 @@ export const insertPackageRating = async (
       licenseScore,
     ]);
   } catch (error) {
-    console.error("Error inserting package Rating intoo packages: ", error);
+    console.error("Error inserting package Rating into packages", error);
   }
 };
 
@@ -113,7 +113,7 @@ export const insertPackageQuery = async (
   contentType: Boolean
 ) => {
   const query = `
-      INSERT INTO public.packages (name, version, package_id, content_type)
+      INSERT INTO public."packages" (name, version, package_id, content_type)
       VALUES ($1, $2, $3, $4)
       ON CONFLICT (name, version) DO NOTHING
       RETURNING package_id;
@@ -126,7 +126,7 @@ export const insertPackageQuery = async (
       contentType,
     ]);
   } catch (error: any) {
-    console.error(`Error inserting package query into packages: ${error}`);
+    console.error(`Error inserting package query into public."packages": ${error}`);
     throw error;
   }
 };
@@ -138,7 +138,7 @@ export const insertIntoMetadataQuery = async (
   readme: string // Added readme parameter
 ) => {
   const query = `
-      INSERT INTO public.package_metadata (name, version, package_id, readme)
+      INSERT INTO public."package_metadata" (name, version, package_id, readme)
       VALUES ($1, $2, $3, $4)
       ON CONFLICT (package_id) DO UPDATE SET
         name = EXCLUDED.name,
@@ -162,7 +162,7 @@ export const insertIntoPackageDataQuery = async (
   jsProgram: string | undefined
 ) => {
   const query = `
-      INSERT INTO public.package_data (package_id, content_type, url, debloat, js_program)
+      INSERT INTO package_data (package_id, content_type, url, debloat, js_program)
       VALUES ($1, $2, $3, $4, $5);
     `;
   try {
@@ -174,7 +174,7 @@ export const insertIntoPackageDataQuery = async (
       jsProgram,
     ]);
   } catch (error: any) {
-    console.error(`Error inserting package data into packages: ${error}`);
+    console.error(`Error inserting package data into public."packages": ${error}`);
     throw error;
   }
 };
@@ -196,7 +196,7 @@ export const packageExistsQuery = async (
 export const getPackageDetails = async (
   packageId: string
 ): Promise<{ packageName: string; version: string }> => {
-  const query = `SELECT name, version FROM public.packages WHERE package_id = $1`;
+  const query = `SELECT name, version FROM public."packages" WHERE package_id = $1`;
   try {
     const res = await getDbPool().query(query, [packageId]);
     if (res.rows.length === 0) {
@@ -211,7 +211,7 @@ export const getPackageDetails = async (
 
 // Check if package exists by packageId
 export const packageExists = async (packageId: string): Promise<boolean> => {
-  const query = `SELECT 1 FROM public.packages WHERE package_id = $1 LIMIT 1`;
+  const query = `SELECT 1 FROM public."packages" WHERE package_id = $1 LIMIT 1`;
   try {
     const res = await getDbPool().query(query, [packageId]);
     return res.rowCount > 0;
@@ -265,7 +265,7 @@ export async function insertIntoPackageRatingsQuery(packageId: string, metrics: 
   const dbPool = getDbPool();
 
   const query = `
-    INSERT INTO package_ratings (
+    INSERT INTO public."package_ratings" (
       package_id,
       bus_factor,
       bus_factor_latency,
@@ -368,7 +368,7 @@ export async function getPackageRatings(packageId: string): Promise<PackageRatin
       good_pinning_practice, good_pinning_practice_latency,
       pull_request, pull_request_latency,
       net_score, net_score_latency
-    FROM package_ratings
+    FROM public."package_ratings"
     WHERE package_id = $1
   `;
   const values = [packageId];

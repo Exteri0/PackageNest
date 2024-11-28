@@ -15,8 +15,14 @@ import * as zlib from 'zlib';
 import * as stream from 'stream';
 import { pipeline } from 'stream/promises';
 import * as semver from 'semver'; // Ensure semver is installed and imported correctly
-import crypto from 'crypto'; // Import crypto for hashing
-
+import crypto from 'crypto';
+import fs from 'fs'// Import crypto for hashing
+import { tmpdir } from 'os';
+import * as terser from 'terser';
+import path from 'path';
+import archiver from 'archiver';
+import * as fsPromises from 'fs/promises';
+import unzipper from 'unzipper'; // Ensure you have a dependency like `unzipper` for extracting files
 /**
  * Generates a unique numerical ID based on package name and version.
  * The ID is stored as a string.
@@ -24,7 +30,7 @@ import crypto from 'crypto'; // Import crypto for hashing
  * @param {string} version - Package version in "x.y.z" format
  * @returns {string} - Unique ID as a string
  */
-function generateUniqueId(name: string, version: string): string {
+export function generateUniqueId(name: string, version: string): string {
   // Create a SHA-256 hash of the name and version
   const hash = crypto.createHash("sha256").update(`${name}@${version}`).digest("hex");
 
@@ -535,4 +541,126 @@ export async function calculateSize(
     console.error(`Unexpected error in calculateSize():`, error);
     throw new CustomError(`Unexpected error: ${error.message}`, 500);
   }
+}
+/**
+ * Debloats a ZIP package by minifying all JavaScript files within it and re-zipping with optimal compression.
+ * @param zipBuffer - The Buffer containing the original ZIP file.
+ * @returns A Buffer containing the debloated ZIP file.
+ * @throws CustomError if debloating fails.
+ */
+/**
+ * Perform debloating on a ZIP file by extracting its contents,
+ * minifying JavaScript files, and creating a new ZIP with reduced size.
+ */
+export async function debloatPackage(zipBuffer: Buffer): Promise<Buffer> {
+  const tempDir = fs.mkdtempSync(path.join(tmpdir(), 'debloat-'));
+  const extractedDir = path.join(tempDir, 'extracted');
+  const debloatedZipPath = path.join(tempDir, 'package-debloated.zip');
+
+  // Ensure the extracted directory exists
+  fs.mkdirSync(extractedDir, { recursive: true });
+
+  try {
+    // Extract the provided ZIP buffer into the temporary directory
+    await extractZipToDir(zipBuffer, extractedDir);
+
+    // Minify JS files found in the extracted directory
+    await minifyJavaScriptInDir(extractedDir);
+
+    // Create a new ZIP file with the minified contents
+    return await createDebloatedZip(extractedDir, debloatedZipPath);
+  } catch (error: any) {
+    console.error('Error during debloating:', error);
+    throw new Error(`Debloating failed: ${error.message}`);
+  } finally {
+    // Clean up the temporary directory after debloating
+    try {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+      console.log(`Successfully cleaned up temporary directory: ${tempDir}`);
+    } catch (cleanupError) {
+      console.error(`Error during cleanup of temporary directory: ${tempDir}`, cleanupError);
+    }
+  }
+}
+
+/**
+ * Extract a ZIP buffer to a specified directory.
+ */
+async function extractZipToDir(zipBuffer: Buffer, targetDir: string): Promise<void> {
+  const zipStream = stream.Readable.from(zipBuffer);
+  const extract = unzipper.Extract({ path: targetDir });
+  zipStream.pipe(extract);
+
+  return new Promise((resolve, reject) => {
+    extract.on('close', resolve);
+    extract.on('error', reject);
+  });
+}
+
+/**
+ * Minify all JavaScript files in the given directory and subdirectories.
+ */
+async function minifyJavaScriptInDir(dir: string): Promise<void> {
+  const files = await fsPromises.readdir(dir, { withFileTypes: true });
+
+  for (const file of files) {
+    const filePath = path.join(dir, file.name);
+    if (file.isDirectory()) {
+      // Recursively process subdirectories
+      await minifyJavaScriptInDir(filePath);
+    } else if (file.isFile() && file.name.endsWith('.js')) {
+      // Minify the JavaScript file
+      await minifyJavaScriptFile(filePath);
+    }
+  }
+}
+
+/**
+ * Minify a single JavaScript file using Terser.
+ */
+async function minifyJavaScriptFile(filePath: string): Promise<void> {
+  try {
+    const fileContent = await fsPromises.readFile(filePath, 'utf8');
+    const minified = await terser.minify(fileContent);
+
+    // Write the minified content back to the file
+    if (minified.code) {
+      await fsPromises.writeFile(filePath, minified.code);
+      console.log(`Successfully minified: ${filePath}`);
+    } else {
+      console.error(`Minification failed for file ${filePath}: No code generated.`);
+    }
+  } catch (error) {
+    console.error(`Error processing file ${filePath}:`, error);
+  }
+}
+
+/**
+ * Create a debloated ZIP file from the contents of a directory.
+ */
+async function createDebloatedZip(sourceDir: string, outputZipPath: string): Promise<Buffer> {
+  return new Promise<Buffer>((resolve, reject) => {
+    const output = fs.createWriteStream(outputZipPath);
+    const archive = archiver('zip', {
+      zlib: { level: 9 }, // Maximum compression level
+    });
+
+    // Ensure the directory exists before creating the ZIP
+    fs.mkdirSync(path.dirname(outputZipPath), { recursive: true });
+
+    archive.on('error', (err: any) => reject(new Error(`Archiving failed: ${err.message}`)));
+
+    // Pipe the archive output to the file stream
+    archive.pipe(output);
+
+    // Add the extracted (and minified) directory to the archive
+    archive.directory(sourceDir, false); // `false` to preserve folder structure in ZIP
+    archive.finalize();
+
+    // Once the archive is finalized, read the file and return the buffer
+    output.on('close', () => {
+      const debloatedBuffer = fs.readFileSync(outputZipPath);
+      resolve(debloatedBuffer);
+    });
+  });
 }
