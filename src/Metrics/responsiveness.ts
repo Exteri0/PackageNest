@@ -25,7 +25,7 @@ export async function calculateResponsivenessMetric(
   name: string
 ): Promise<{
   ResponsiveMaintainer: number;
-  ResponsiveMaintainer_Latency: number;
+  ResponsiveMaintainerLatency: number;
 }> {
   console.log(`Calculating responsiveness metric for ${owner}/${name}`);
   const startTime = performance.now();
@@ -74,7 +74,7 @@ export async function calculateResponsivenessMetric(
       );
       return {
         ResponsiveMaintainer: 0,
-        ResponsiveMaintainer_Latency: getLatency(startTime),
+        ResponsiveMaintainerLatency: getLatency(startTime),
       };
     }
     // Pull Requests
@@ -119,7 +119,7 @@ export async function calculateResponsivenessMetric(
       );
       return {
         ResponsiveMaintainer: 0,
-        ResponsiveMaintainer_Latency: getLatency(startTime),
+        ResponsiveMaintainerLatency: getLatency(startTime),
       };
     }
 
@@ -149,13 +149,13 @@ export async function calculateResponsivenessMetric(
 
     return {
       ResponsiveMaintainer: responsivenessScore,
-      ResponsiveMaintainer_Latency: getLatency(startTime),
+      ResponsiveMaintainerLatency: getLatency(startTime),
     };
   } catch (error) {
     console.error(error);
     return {
       ResponsiveMaintainer: 0,
-      ResponsiveMaintainer_Latency: getLatency(startTime),
+      ResponsiveMaintainerLatency: getLatency(startTime),
     };
   }
 }

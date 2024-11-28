@@ -23,7 +23,7 @@ function getLatency(startTime: number): number {
 export async function calculateCorrectnessMetric(
   owner: string,
   name: string
-): Promise<{ Correctness: number; Correctness_Latency: number }> {
+): Promise<{ Correctness: number; CorrectnessLatency: number }> {
   console.log(`Calculating correctness metric for ${owner}/${name}`);
   const startTime = performance.now();
 
@@ -82,7 +82,7 @@ export async function calculateCorrectnessMetric(
     console.log(`Correctness score calculated: ${correctnessScore}`);
     return {
       Correctness: correctnessScore,
-      Correctness_Latency: getLatency(startTime),
+      CorrectnessLatency: getLatency(startTime),
     };
   } catch (error) {
     if (error instanceof GraphqlResponseError) {
@@ -90,6 +90,6 @@ export async function calculateCorrectnessMetric(
     } else {
       console.error(error);
     }
-    return { Correctness: 0, Correctness_Latency: getLatency(startTime) };
+    return { Correctness: 0, CorrectnessLatency: getLatency(startTime) };
   }
 }

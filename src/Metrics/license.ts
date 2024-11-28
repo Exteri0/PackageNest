@@ -42,7 +42,7 @@ function getLatency(startTime: number): number {
 export async function calculateLicenseMetric(
   owner: string,
   name: string
-): Promise<{ License: number; License_Latency: number }> {
+): Promise<{ LicenseScore: number; LicenseScoreLatency: number }> {
   console.log(`Calculating license metric for ${owner}/${name}`);
   const startTime = performance.now();
 
@@ -108,7 +108,7 @@ export async function calculateLicenseMetric(
     ) {
       if (!packageName) {
         console.log("No package.json found, unable to determine license");
-        return { License: 0, License_Latency: getLatency(startTime) };
+        return { LicenseScore: 0, LicenseScoreLatency: getLatency(startTime) };
       }
       console.log("Checking license from registry");
       const registryLink = `https://registry.npmjs.org/${packageName}`;
@@ -130,13 +130,13 @@ export async function calculateLicenseMetric(
         licenseScore = 0;
       }
     }
-    return { License: licenseScore, License_Latency: getLatency(startTime) };
+    return { LicenseScore: licenseScore, LicenseScoreLatency: getLatency(startTime) };
   } catch (error) {
     if (error instanceof GraphqlResponseError) {
       console.error(error.message);
     } else {
       console.error(error);
     }
-    return { License: -1, License_Latency: 0 };
+    return { LicenseScore: -1, LicenseScoreLatency: 0 };
   }
 }
