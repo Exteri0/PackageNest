@@ -309,21 +309,21 @@ export async function insertIntoPackageRatingsQuery(packageId: string, metrics: 
   const values = [
     packageId,
     metrics.BusFactor,
-    metrics.BusFactor_Latency,
+    metrics.BusFactorLatency,
     metrics.Correctness,
-    metrics.Correctness_Latency,
+    metrics.CorrectnessLatency,
     metrics.RampUp,
-    metrics.RampUp_Latency,
+    metrics.RampUpLatency,
     metrics.ResponsiveMaintainer,
-    metrics.ResponsiveMaintainer_Latency,
-    metrics.License,
-    metrics.License_Latency,
+    metrics.ResponsiveMaintainerLatency,
+    metrics.LicenseScore,
+    metrics.LicenseScoreLatency,
     metrics.GoodPinningPractice,
     metrics.GoodPinningPracticeLatency,
     metrics.PullRequest,
     metrics.PullRequestLatency,
     metrics.NetScore,
-    metrics.NetScore_Latency,
+    metrics.NetScoreLatency,
   ];
 
   try {
