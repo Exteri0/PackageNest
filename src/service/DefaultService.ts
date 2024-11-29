@@ -1128,24 +1128,17 @@ export async function registryReset(
  */
 export function tracksGET(
   xAuthorization: AuthenticationToken
-): Promise<Array<any>> {
-  return new Promise<Array<any>>((resolve) => {
-    const examples: { [key: string]: Array<any> } = {
-      "application/json": [
+): any {
+
+  console.log("Entered tracksGET function");
+
+    const examples: { [key: string]: any } = {
+      "application/json": 
         {
-          Version: "1.2.3",
-          ID: "123567192081501",
-          Name: "Name",
+          "plannedTracks": "Access control track"
         },
-        {
-          Version: "1.2.3",
-          ID: "123567192081501",
-          Name: "Name",
-        },
-      ],
     };
-    resolve(examples["application/json"]);
-  });
+  return examples["application/json"];
 }
 
 /**
