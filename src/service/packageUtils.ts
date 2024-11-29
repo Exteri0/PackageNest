@@ -664,3 +664,13 @@ async function createDebloatedZip(sourceDir: string, outputZipPath: string): Pro
     });
   });
 }
+
+export function compareVersions(newVersion: string, oldVersion: string): boolean {
+  const [newMajor, newMinor, newPatch] = newVersion.split('.').map(Number);
+  const [oldMajor, oldMinor, oldPatch] = oldVersion.split('.').map(Number);
+
+  if (newMajor === oldMajor && newMinor === oldMinor && newPatch < oldPatch) {
+    return false; // Reject lower patch versions if major and minor match
+  }
+  return true; // Allow all other cases
+}
