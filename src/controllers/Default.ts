@@ -6,6 +6,7 @@ import * as Default from "../service/DefaultService.js";
 import { calculateMetrics } from "../Metrics/metricExport.js";
 import { CustomError, OpenApiRequest } from "../utils/types.js";
 import jwt from "jsonwebtoken";
+import { stringify } from "querystring";
 
 // Things with an input like offset might cause trouble
 
@@ -173,7 +174,7 @@ export const PackageRate = async (
 
     const response = await Default.packageRate(id, xAuthorization);
     console.log("Received response from service:", response);
-    res.json(response);
+    res.status(200).json(response);
     console.log("Response sent from controller");
   } catch (error: any) {
     console.error("Error in Rate controller:", error);
@@ -285,18 +286,20 @@ export const tracksGET = (
   res: Response,
   next: NextFunction
 ): void => {
+  console.log("Entered tracksGET controller function");
   const xAuthorization: Default.AuthenticationToken = {
     token: req.headers.authorization
       ? req.headers.authorization.toString()
       : "",
   };
-  Default.tracksGET(xAuthorization)
-    .then((response: any) => {
-      utils.writeJson(res, response);
-    })
-    .catch((response: any) => {
-      utils.writeJson(res, response);
-    });
+  try{
+    const tracks = Default.tracksGET(xAuthorization)
+    res.status(200).json(tracks);
+    console.log(`Response sent from controller: ${tracks}`);
+  }
+  catch (error: any){
+    throw new CustomError("Error in tracksGET controller", 500);
+  }
 };
 
 export const testGET = (
