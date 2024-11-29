@@ -63,6 +63,7 @@ CREATE TABLE users (
     isAdmin BOOLEAN NOT NULL DEFAULT FALSE,
     isBackend BOOLEAN NOT NULL DEFAULT FALSE
 );
+INSERT INTO users (name, password_hash, isAdmin, isBackend) VALUES ('James D', '${hashedPassword}', TRUE, TRUE);
 -- ROLE VARCHAR(10) NOT NULL CHECK (ROLE IN ('BACKEND', 'ADMIN', 'DEVELOPER'))
 
 
