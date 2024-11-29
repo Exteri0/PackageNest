@@ -160,4 +160,20 @@ export default (app: Express) => {
   /* app.get("/test/metrics/:metric_name", (req: Request, res: Response, next: NextFunction) => {
     DefaultController.testMetricNameGET(req, res, next);
   }); */
+
+  // POST /populate (Populate endpoint to add multiple packages)
+  app.post(
+    "/populate",
+    async (req: Request, res: Response, next: NextFunction) => {
+      console.log("Received POST /populate request");
+      try {
+        await DefaultController.populate(req, res, next);
+        console.log("Populate response sent successfully");
+      } catch (error) {
+        console.error("Error in /populate route handler:", error);
+        next(error);
+      }
+    }
+  );
+
 };
