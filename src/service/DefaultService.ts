@@ -380,7 +380,7 @@ export async function packageCreate(
       console.log("Debloating is enabled. Starting the debloating process...");
       finalBuffer = await debloatPackage(zipBuffer);
       console.log("Debloating completed successfully.");
-      s3Key = `packages/${packageName}/v${packageVersion}/package-debloated.zip`;
+      s3Key = `packages/${packageName}/v${packageVersion}/package.zip`;
     } else {
       s3Key = `packages/${packageName}/v${packageVersion}/package.zip`;
     }
