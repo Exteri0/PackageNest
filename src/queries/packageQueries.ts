@@ -380,3 +380,34 @@ export async function getPackageRatings(packageId: string): Promise<PackageRatin
   }
   return result.rows[0];
 }
+
+export async function updatePackageMetadata(
+  packageId: string,
+  name: string,
+  version: string
+): Promise<void> {
+  const query = `
+    UPDATE public.packages
+    SET name = $2, version = $3, updated_at = NOW()
+    WHERE package_id = $1;
+  `;
+  await getDbPool().query(query, [packageId, name, version]);
+}
+
+
+export async function updatePackageData(
+  packageId: string,
+  contentType: boolean,
+  debloat: boolean,
+  jsProgram?: string,
+  url?: string
+): Promise<void> {
+  const query = `
+    UPDATE public.package_data
+    SET content_type = $2, debloat = $3, js_program = $4, url = $5, updated_at = NOW()
+    WHERE package_id = $1;
+  `;
+  await getDbPool().query(query, [packageId, contentType, debloat, jsProgram, url]);
+}
+
+

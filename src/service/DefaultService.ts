@@ -9,7 +9,8 @@ import "dotenv/config";
 import { getDbPool } from "./databaseConnection.js";
 import * as packageQueries from "../queries/packageQueries.js";
 import { calculateMetrics } from "../Metrics/metricExport.js";
-import { calculateSize, debloatPackage, generateUniqueId } from "../service/packageUtils.js";
+import { calculateSize, debloatPackage, generateUniqueId, compareVersions } from "../service/packageUtils.js";
+import { updatePackageData, updatePackageMetadata } from "../queries/packageQueries.js";
 import { CustomError, PackageCostDetail } from "../utils/types.js";
 import { extractGithubRepoLink } from "../utils/packageExtractor.js"; // Import the extractor
 import * as crypto from "crypto";
@@ -895,15 +896,180 @@ export async function packageRetrieve(
  * @param xAuthorization AuthenticationToken
  * @returns Promise<void>
  */
-export function packageUpdate(
-  body: Package,
-  id: PackageID,
-  xAuthorization: AuthenticationToken
-): Promise<void> {
-  return new Promise(function (resolve) {
-    resolve();
-  });
+export async function packageUpdate(
+  id: string,
+  Content?: string,
+  URL?: string,
+  debloat?: boolean,
+  JSProgram?: string,
+  customName?: string
+) {
+  let packageName: string | undefined;
+  let packageVersion: string | undefined;
+  let updatedPackageId: string | undefined;
+  let contentBuffer: Buffer | undefined;
+  const debloatVal = debloat ?? false;
+
+  // Ensure either 'Content' or 'URL' is provided, but not both or neither
+  if ((!URL && !Content) || (URL && Content)) {
+    throw new CustomError(
+      "Invalid input: Provide either 'Content' or 'URL', but not both.",
+      400
+    );
+  }
+
+  // Fetch the existing package details by ID
+  const pool = getDbPool();
+  const existingPackageQuery = `SELECT name, version, content_type FROM public.packages WHERE package_id = $1`;
+  const existingPackageResult = await pool.query(existingPackageQuery, [id]);
+
+  if (existingPackageResult.rows.length === 0) {
+    throw new CustomError("Package not found.", 404);
+  }
+
+  const existingPackage = existingPackageResult.rows[0];
+  const existingName = existingPackage.name;
+  const existingVersion = existingPackage.version;
+  const existingContentType = existingPackage.content_type;
+
+  console.log(`Existing package details: ${JSON.stringify(existingPackage)}`);
+
+  // Ensure update type matches the existing package
+  if ((Content && !existingContentType) || (URL && existingContentType)) {
+    throw new CustomError(
+      `Invalid update type: Existing package was uploaded with ${
+        existingContentType ? "Content" : "URL"
+      }. Update must match the original type.`,
+      400
+    );
+  }
+
+  async function handleUpload(
+    packageName: string,
+    packageVersion: string,
+    zipBuffer: Buffer,
+    debloatVal: boolean
+  ): Promise<{ s3Key: string }> {
+    let finalBuffer = zipBuffer;
+    let s3Key: string;
+
+    if (debloatVal) {
+      console.log("Debloating is enabled. Starting the debloating process...");
+      finalBuffer = await debloatPackage(zipBuffer);
+      console.log("Debloating completed successfully.");
+    }
+
+    s3Key = `packages/${packageName}/v${packageVersion}/package.zip`;
+
+    const s3Params = {
+      Bucket: process.env.S3_BUCKET_NAME!,
+      Key: s3Key,
+      Body: finalBuffer,
+      ContentType: "application/zip",
+    };
+
+    console.log("Uploading package to S3 with key:", s3Key);
+    // Upload the package content to S3
+    await s3.putObject(s3Params).promise();
+    console.log("Package uploaded to S3 successfully.");
+
+    return { s3Key };
+  }
+
+  // Process update with URL
+  if (URL) {
+    console.log("Processing package update with URL...");
+    try {
+      if (URL.includes("npmjs.com")) {
+        URL = await convertNpmUrlToGitHubUrl(URL);
+        console.log(`Converted npmjs.com URL to GitHub URL: ${URL}`);
+      }
+      if (URL.includes("github.com")) {
+        // Extract repository owner and name from the GitHub URL
+        const repoMatch = URL.match(/github\.com\/([^/]+)\/([^/]+)(?:\/blob\/[^/]+\/.+)?$/);
+        if (!repoMatch) throw new CustomError("Invalid GitHub URL format", 400);
+        const owner = repoMatch[1];
+        const repo = repoMatch[2];
+
+        // Retrieve package information from the repository's package.json
+        const packageInfo = await getPackageInfoRepo(owner, repo);
+        packageName = customName || packageInfo.name;
+        packageVersion = packageInfo.version || "1.0.0";
+        console.log(`Retrieved packageName: ${packageName}, packageVersion: ${packageVersion}`);
+      } else {
+        throw new CustomError("Unsupported URL format. Provide GitHub or npmjs.com URL.", 400);
+      }
+
+      // Download and upload package to S3
+      console.log("Downloading package from URL...");
+      const fileBuffer = await downloadFile(URL);
+      await handleUpload(packageName!, packageVersion!, fileBuffer, debloatVal);
+    } catch (error: any) {
+      console.error("Error occurred while processing URL:", error);
+      throw new CustomError(`Failed to process URL: ${error.message}`, 500);
+    }
+  }
+
+  // Process update with Content
+  if (Content) {
+    console.log("Processing package update with Content...");
+    try {
+      // Retrieve package information from the provided zip file content
+      const responseInfo = await getPackageInfoZipFile(Content);
+      packageName = customName || responseInfo.name; // Use customName if provided
+      packageVersion = responseInfo.version || "1.0.0";
+
+      // Decode the base64 encoded zip file to a Buffer
+      contentBuffer = Buffer.from(Content, "base64");
+
+      // Upload package to S3
+      await handleUpload(packageName!, packageVersion!, contentBuffer, debloatVal);
+    } catch (error: any) {
+      console.error("Error occurred while processing Content:", error);
+      throw new CustomError(`Failed to process Content: ${error.message}`, 500);
+    }
+  }
+
+  if (!packageName || !packageVersion || !/^\d+\.\d+\.\d+$/.test(packageVersion)) {
+    throw new CustomError("Invalid package name or version.", 400);
+  }
+
+  // Validate the version update
+  if (!compareVersions(packageVersion, existingVersion)) {
+    throw new CustomError(
+      `Invalid version update: Existing version is ${existingVersion}. Update must not be a lower patch version.`,
+      400
+    );
+  }
+
+  // Generate a new package ID for the updated package
+  updatedPackageId = generateUniqueId(packageName, packageVersion);
+  console.log(`Generated new package ID: ${updatedPackageId}`);
+
+  // Update metadata and data in the database
+  try {
+    const readmeContent = await extractReadme({ URL: URL ?? '' });
+    console.log(`Extracted README content: ${readmeContent.substring(0, 100)}...`); // Log a snippet of README
+
+    const metrics = await calculateMetrics(URL ?? '');
+    const rating = metrics?.NetScore || 0;
+
+    await updatePackageMetadata(updatedPackageId, packageName, packageVersion);
+    await updatePackageData(updatedPackageId, Content ? true : false, debloatVal, JSProgram, URL);
+
+    // Insert metrics if available
+    if (metrics) {
+      await packageQueries.insertIntoPackageRatingsQuery(updatedPackageId, metrics);
+      console.log("Metrics inserted into the 'package_ratings' table.");
+    }
+
+    console.log("Package metadata and data updated successfully.");
+  } catch (error: any) {
+    console.error("Error occurred during database update:", error);
+    throw new CustomError(`Failed to update package in database: ${error.message}`, 500);
+  }
 }
+
 
 /**
  * (BASELINE)
