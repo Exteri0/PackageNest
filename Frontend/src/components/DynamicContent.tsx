@@ -4,6 +4,11 @@ import UploadPackage from './UploadPackage';
 import EmptyContent from './EmptyContent';
 import Reset from './Reset';
 import RatePackage from './RatePackage';
+import CostPackage from './CostPackage';
+import Tracks from './Tracks';
+import Login from './Login';
+import Regsiter from './Register';
+import Logout from './Logout';
 
 interface DynamicContentProps {
   selectedAction: string;
@@ -16,7 +21,6 @@ const DynamicContent: React.FC<DynamicContentProps> = ({ selectedAction }) => {
     case 'uploadPackage':
       return <UploadPackage />;
     case 'updatePackage':
-    case 'deletePackage':
     case 'ratePackage':
       return <RatePackage />;
     case 'resetRegistry':
@@ -24,9 +28,15 @@ const DynamicContent: React.FC<DynamicContentProps> = ({ selectedAction }) => {
     case 'authenticate':
       return <EmptyContent />;
     case 'costPackage':
-      return <EmptyContent />;
+      return <CostPackage />;
     case 'tracks':
-      return <EmptyContent />;
+      return <Tracks />;
+    case 'login':
+      return <Login />;
+    case 'register':
+      return <Regsiter />;
+    case 'logout':
+      return <Logout />;
     default:
       return <EmptyContent />;
   }

@@ -24,10 +24,6 @@ export const CreateAuthToken = async (
       }
     );
     console.log(token);
-    res.cookie("authToken", token, {
-      maxAge: 10 * 60 * 60 * 1000,
-      httpOnly: true,
-    });
     res.json({ token: `bearer ${token}` });
   } catch (error: any) {
     console.error("Error in CreateAuth controller:", error);
@@ -145,7 +141,7 @@ export const packageIdCostGET = (
       : "",
   };
   const id: Default.PackageID = { id: req.params.name };
-  Default.packageIdCostGET(id,dependency) //xAuthorization, 
+  Default.packageIdCostGET(id, dependency) //xAuthorization,
     .then((response: any) => {
       utils.writeJson(res, response);
     })
@@ -164,7 +160,7 @@ export const PackageRate = async (
       ? req.headers.authorization.toString()
       : "",
   };
-  console.log(`ID IN DEFAULTTS: ${req.params}`)
+  console.log(`ID IN DEFAULTTS: ${req.params}`);
   const id: Default.PackageID = { id: req.params.id };
   try {
     const xAuthorization: Default.AuthenticationToken = {
@@ -301,12 +297,11 @@ export const tracksGET = (
       ? req.headers.authorization.toString()
       : "",
   };
-  try{
-    const tracks = Default.tracksGET(xAuthorization)
+  try {
+    const tracks = Default.tracksGET(xAuthorization);
     res.status(200).json(tracks);
     console.log(`Response sent from controller: ${tracks}`);
-  }
-  catch (error: any){
+  } catch (error: any) {
     throw new CustomError("Error in tracksGET controller", 500);
   }
 };
@@ -380,8 +375,6 @@ export const populate = (
       utils.writeJson(res, response);
     });
 };
-  
-
 
 /* export const testMetricNameGET = (
   req: OpenApiRequest,

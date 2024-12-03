@@ -30,7 +30,6 @@ export default function RatePackage() {
     setRate({} as RatePackage);
     if (id == '') {
       message.error('Please enter a package ID');
-      return;
     } else {
       await axios
         .get(`${config.apiBaseUrl}/package/${id}/rate`)

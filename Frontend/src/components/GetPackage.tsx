@@ -12,9 +12,16 @@ type Package = {
   content_type?: boolean;
   base64?: string;
 };
+type PackageResponse = {
+  Name: string;
+  Version: string;
+  ID: string;
+
+}
 export default function GetPackage() {
   const [selectedOption, setSelectedOption] = useState('id');
   const [status, setStatus] = useState(0);
+  console.log(status);
   const [id, setId] = useState('');
   const [name, setName] = useState('');
   const [regex, setRegex] = useState('');
@@ -91,7 +98,7 @@ export default function GetPackage() {
   const handleSubmit = async () => {
     let body = {};
     let params = {};
-    let headers = {};
+    const headers = {};
     const hasError = await checkInput(); // Wait for checkInput to complete
     if (hasError)
       return; // If there's an error, stop further execution    if (flag) return;
@@ -148,7 +155,7 @@ export default function GetPackage() {
             .post(`${config.apiBaseUrl}/package/byRegex`, body, { headers })
             .then((response) => {
               // Map response data to match your Package type
-              const packages = response.data.map((pkg) => ({
+              const packages = response.data.map((pkg:PackageResponse) => ({
                 name: pkg.Name,
                 version: pkg.Version,
                 package_id: pkg.ID,

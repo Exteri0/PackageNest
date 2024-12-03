@@ -3,7 +3,6 @@ import { getDbPool } from "../service/databaseConnection.js";
 import "dotenv/config";
 import bcrypt from "bcrypt";
 
-
 export async function executeSqlFile(): Promise<void> {
   try {
     // Connect to the PostgreSQL database
@@ -18,7 +17,7 @@ export async function executeSqlFile(): Promise<void> {
   }
 }
 
-const hashedPassword = await bcrypt.hash("admin", 10);;
+const hashedPassword = await bcrypt.hash("admin", 10);
 
 const RemoveAll = `
 DO $$ DECLARE
@@ -72,8 +71,7 @@ CREATE TABLE authentication_tokens (
     id SERIAL PRIMARY KEY,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     token VARCHAR(500) NOT NULL,
-    issued_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    expires_at TIMESTAMP NOT NULL
+    num_interactions INTEGER NOT NULL DEFAULT 0
 );
 
 -- Packages table

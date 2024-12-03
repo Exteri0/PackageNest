@@ -104,3 +104,55 @@ export const setUserAdminStatus = async (userId: number, isAdmin: boolean) => {
     throw error;
   }
 };
+
+export const createToken = async (userId: number, token: string) => {
+  const query = `
+    INSERT INTO authentication_tokens (user_id, token, num_interactions) 
+    VALUES ($1, $2, 0) 
+    RETURNING *`;
+  try {
+    const res = await getDbPool().query(query, [userId, token]);
+    return res.rows[0];
+  } catch (error) {
+    console.error("Error creating token:", error);
+    throw error;
+  }
+};
+
+export const getTokenByUserId = async (userId: number) => {
+  const query = "SELECT * FROM authentication_tokens WHERE user_id = $1";
+  try {
+    const res = await getDbPool().query(query, [userId]);
+    return res.rows[0];
+  } catch (error) {
+    console.error("Error fetching token by user ID:", error);
+    throw error;
+  }
+};
+
+export const updateToken = async (userId: number) => {
+  const query = `
+    UPDATE authentication_tokens 
+    SET num_interactions = num_interactions + 1 
+    WHERE user_id = $1 
+    RETURNING *`;
+  try {
+    const res = await getDbPool().query(query, [userId]);
+    return res.rows[0];
+  } catch (error) {
+    console.error("Error updating token:", error);
+    throw error;
+  }
+};
+
+export const deleteToken = async (userId: number) => {
+  const query =
+    "DELETE FROM authentication_tokens WHERE user_id = $1 RETURNING *";
+  try {
+    const res = await getDbPool().query(query, [userId]);
+    return res.rowCount !== null && res.rowCount > 0;
+  } catch (error) {
+    console.error("Error deleting token:", error);
+    throw error;
+  }
+};

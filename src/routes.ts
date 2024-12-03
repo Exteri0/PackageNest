@@ -1,8 +1,15 @@
 import { Express, Request, Response, NextFunction } from "express";
+
+interface AuthenticatedRequest extends Request {
+  user?: any;
+}
 import * as DefaultController from "./controllers/Default.js";
 import { verifyJWT } from "./middleware/verifyJWT.js";
 import { CustomError } from "./utils/types.js";
-import { packageIdCostGET, AuthenticationToken } from "./service/DefaultService.js";
+import {
+  packageIdCostGET,
+  AuthenticationToken,
+} from "./service/DefaultService.js";
 
 export default (app: Express) => {
   // POST /packages (PackagesList expects req, res, next, body, offset)
@@ -57,7 +64,7 @@ export default (app: Express) => {
 
   // PUT /package/{id} (PackageUpdate expects req, res, next, body)
   app.put("/package/:id", (req: Request, res: Response, next: NextFunction) => {
-    DefaultController.PackageUpdate(req, res, next, req.body);
+    DefaultController.PackageUpdate(req, res, next);
   });
 
   // DELETE /package/{id} (PackageDelete expects req, res, next)
@@ -84,22 +91,25 @@ export default (app: Express) => {
       DefaultController.packageIdCostGET(req, res, next, dependency);
     }
   );*/
-  app.get("/package/:id/cost", async (req: Request, res: Response, next: NextFunction) => {
-    try {
+  app.get(
+    "/package/:id/cost",
+    async (req: Request, res: Response, next: NextFunction) => {
+      try {
         const packageId = req.params.id;
         //const xAuthorization = req.headers.authorization;
         const dependency = req.query.dependency === "true"; // optional query param for dependency
-      
+
         const cost = await packageIdCostGET({ id: packageId }, dependency);
         res.json(cost);
-    } catch (error) {
+      } catch (error) {
         if (error instanceof CustomError) {
-            res.status(error.status || 500).json({ message: error.message });
+          res.status(error.status || 500).json({ message: error.message });
         } else {
-            next(error); // Pass to default error handler
+          next(error); // Pass to default error handler
         }
+      }
     }
-});
+  );
 
   // PUT /authenticate (CreateAuthToken expects req, res, next, body)
   app.put(
@@ -145,14 +155,14 @@ export default (app: Express) => {
     DefaultController.getUsers(req, res, next);
   });
 
-  app.get(
-    "/protected",
-    (req: Request, res: Response, next: NextFunction) => {
-      verifyJWT(req, res, next, false, true);
+  app.post(
+    "/decode",
+    (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+      verifyJWT(req, res, next, false, false, 0);
     },
-    (req: Request, res: Response, next: NextFunction) => {
-      console.log("Received GET /protected request");
-      res.status(200).send("Protected route accessed");
+    (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+      console.log("Received GET /decode request");
+      res.status(200).json({ user: req.user });
     }
   );
 
@@ -175,5 +185,4 @@ export default (app: Express) => {
       }
     }
   );
-
 };

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Button, Checkbox, Input, Switch, Upload, message } from 'antd';
+import { Button, Switch, Upload, message } from 'antd';
 import axios from 'axios';
 import config from '../config';
 
@@ -41,7 +41,20 @@ const UploadPackage: React.FC = () => {
           console.error(error);
         });
     } else if (uploadMethod === 'uploadGithub') {
-      message.warning('GitHub URL upload is not implemented yet.');
+      message.info('Uploading file from GitHub URL...');
+      axios
+        .post(`${config.apiBaseUrl}/package`, {
+          URL: githubUrl,
+          JSProgram: "console.log('Hello, World!');",
+        })
+        .then((response) => {
+          message.success('File uploaded successfully!');
+          console.log(response.data);
+        })
+        .catch((error) => {
+          message.error('Failed to upload file.');
+          console.error(error);
+        });
     } else {
       message.warning('Please select a file to upload.');
     }

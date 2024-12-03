@@ -9,39 +9,49 @@ import "dotenv/config";
 import { getDbPool } from "./databaseConnection.js";
 import * as packageQueries from "../queries/packageQueries.js";
 import { calculateMetrics } from "../Metrics/metricExport.js";
-import { calculateSize, debloatPackage, generateUniqueId, compareVersions } from "../service/packageUtils.js";
-import { updatePackageData, updatePackageMetadata } from "../queries/packageQueries.js";
+import {
+  calculateSize,
+  debloatPackage,
+  generateUniqueId,
+  compareVersions,
+} from "../service/packageUtils.js";
+import {
+  updatePackageData,
+  updatePackageMetadata,
+} from "../queries/packageQueries.js";
 import { CustomError, PackageCostDetail } from "../utils/types.js";
 import { extractGithubRepoLink } from "../utils/packageExtractor.js"; // Import the extractor
 import * as crypto from "crypto";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
-import { convertNpmUrlToGitHubUrl } from '../utils/urlConverter.js'; // Import the helper function
+import { convertNpmUrlToGitHubUrl } from "../utils/urlConverter.js"; // Import the helper function
 import {
+  createToken,
   createUser,
+  deleteToken,
   getAllUsers,
+  getTokenByUserId,
   getUserByUsername,
+  updateToken,
 } from "../queries/userQueries.js";
 import {
   getPackageInfoZipFile,
   getPackageInfoRepo,
   downloadFile,
-  convertTarballToZipBuffer
+  convertTarballToZipBuffer,
 } from "../utils/retrievePackageJson.js";
 
 import {
   extractReadme, // Import the README extraction function
 } from "../utils/readmeExtractor.js"; // Adjust the path if necessary
-
+import { get } from "http";
 
 const bucketName = process.env.S3_BUCKET_NAME;
-const s3 = new awsSdk.S3(
-  {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-    secretAccessKey: process.env.AWS_ACCESS_KEY_SECRET,
-    region: 'us-east-2', // Replace with your region
-  }
-);
+const s3 = new awsSdk.S3({
+  accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+  secretAccessKey: process.env.AWS_ACCESS_KEY_SECRET,
+  region: "us-east-2", // Replace with your region
+});
 
 /**
  * Types
@@ -189,22 +199,28 @@ export function createAuthToken(
     if (body.User && body.User.name && body.Secret && body.Secret.password) {
       const foundUser = await getUserByUsername(body.User.name);
       if (foundUser) {
+        console.log("Found user:", foundUser);
         const validPassword = await bcrypt.compare(
           body.Secret.password,
           foundUser.password_hash
         );
         if (validPassword) {
+          const foundToken = await getTokenByUserId(foundUser.id);
+          if (foundToken) {
+            await deleteToken(foundUser.id);
+          }
           const token = jwt.sign(
             {
-              name: body.User.name,
-              isAdmin: body.User.isAdmin,
-              isBackend: body.User.isBackend,
+              name: foundUser.name,
+              isAdmin: foundUser.isadmin,
+              isBackend: foundUser.isbackend,
             },
             process.env.JWT_SECRET ?? "defaultSecret",
             {
               expiresIn: "10h",
             }
           );
+          await createToken(foundUser.id, token);
           resolve({ token: token });
         } else {
           reject(new CustomError("Invalid password", 401));
@@ -335,8 +351,6 @@ export async function packageByRegExGet(
   }
 }
 
-
-
 /**
  * Creates a new package by processing either uploaded content or a repository URL.
  * Optionally debloats the package by minifying JavaScript files.
@@ -365,7 +379,7 @@ export async function packageCreate(
 
   let metrics: any; // Existing type from your code
   let rating: number = 0;
-  let readmeContent: string = '';
+  let readmeContent: string = "";
 
   // Helper function to handle upload and optional debloating
   async function handleUpload(
@@ -407,7 +421,9 @@ export async function packageCreate(
 
   // Check that either 'Content' or 'URL' is provided, but not both or neither
   if ((!URL && !Content) || (URL && Content)) {
-    console.error("Invalid request body: 'Content' or 'URL' (exclusively) is required.");
+    console.error(
+      "Invalid request body: 'Content' or 'URL' (exclusively) is required."
+    );
     throw new CustomError(
       "Invalid request body. 'Content' or 'URL' (exclusively) is required.",
       400
@@ -424,8 +440,11 @@ export async function packageCreate(
         }
         if (URL.includes("github.com")) {
           // Extract repository owner and name from the GitHub URL
-          const repoMatch = URL.match(/github\.com\/([^/]+)\/([^/]+)(?:\/blob\/[^/]+\/.+)?$/);
-          if (!repoMatch) throw new CustomError("Invalid GitHub URL format", 400);
+          const repoMatch = URL.match(
+            /github\.com\/([^/]+)\/([^/]+)(?:\/blob\/[^/]+\/.+)?$/
+          );
+          if (!repoMatch)
+            throw new CustomError("Invalid GitHub URL format", 400);
           const owner = repoMatch[1];
           const repo = repoMatch[2];
 
@@ -433,12 +452,20 @@ export async function packageCreate(
           const packageInfo = await getPackageInfoRepo(owner, repo);
           packageName = packageInfo.name;
           packageVersion = packageInfo.version || "1.0.0";
-          console.log(`Retrieved packageName: ${packageName}, packageVersion: ${packageVersion}`);
+          console.log(
+            `Retrieved packageName: ${packageName}, packageVersion: ${packageVersion}`
+          );
         } else {
-          throw new CustomError("Unsupported URL format. Please provide a GitHub or npmjs.com URL.", 400);
+          throw new CustomError(
+            "Unsupported URL format. Please provide a GitHub or npmjs.com URL.",
+            400
+          );
         }
       } catch (error: any) {
-        console.error("Error occurred in retrieving info from package.json using URL", error);
+        console.error(
+          "Error occurred in retrieving info from package.json using URL",
+          error
+        );
         throw new CustomError(
           `Failed to retrieve package info from package.json using URL: ${error.message}`,
           500
@@ -453,10 +480,18 @@ export async function packageCreate(
         const responseInfo = await getPackageInfoZipFile(Content);
         packageName = customName || responseInfo.name; // Use customName if provided
         packageVersion = responseInfo.version || "1.0.0";
-        console.log(`Retrieved packageName: ${packageName}, packageVersion: ${packageVersion}`);
+        console.log(
+          `Retrieved packageName: ${packageName}, packageVersion: ${packageVersion}`
+        );
       } catch (error: any) {
-        console.error("Error occurred in retrieving info from package.json:", error);
-        throw new CustomError(`Failed to retrieve package info from package.json`, 500);
+        console.error(
+          "Error occurred in retrieving info from package.json:",
+          error
+        );
+        throw new CustomError(
+          `Failed to retrieve package info from package.json`,
+          500
+        );
       }
     }
 
@@ -477,7 +512,9 @@ export async function packageCreate(
 
     // Ensure that the S3 bucket name is defined
     if (!bucketName) {
-      console.error("S3_BUCKET_NAME is not defined in the environment variables.");
+      console.error(
+        "S3_BUCKET_NAME is not defined in the environment variables."
+      );
       throw new CustomError(
         "S3_BUCKET_NAME is not defined in the environment variables.",
         500
@@ -491,7 +528,7 @@ export async function packageCreate(
     }
 
     // Initialize variables for S3 upload
-    let zipBuffer: Buffer = new Buffer('', 'base64');
+    let zipBuffer: Buffer = new Buffer("", "base64");
 
     if (Content && !URL) {
       console.log("Entered packageCreate service function with Content");
@@ -522,7 +559,12 @@ export async function packageCreate(
 
         if (repoLink) {
           readmeContent = await extractReadme({ URL: repoLink });
-          console.log(`Extracted README content FROM CONTENT: ${readmeContent.substring(0, 100)}...`); // Log a snippet of README
+          console.log(
+            `Extracted README content FROM CONTENT: ${readmeContent.substring(
+              0,
+              100
+            )}...`
+          ); // Log a snippet of README
           console.log("Calculating metrics for the package...");
           metrics = await calculateMetrics(repoLink);
           rating = metrics.NetScore;
@@ -530,10 +572,15 @@ export async function packageCreate(
         } else {
           console.log("Repository link not found in package.json.");
         }
-
       } catch (error: any) {
-        console.error("Error occurred in packageCreate (Content Processing):", error);
-        throw new CustomError(`Failed to process package content: ${error.message}`, 500);
+        console.error(
+          "Error occurred in packageCreate (Content Processing):",
+          error
+        );
+        throw new CustomError(
+          `Failed to process package content: ${error.message}`,
+          500
+        );
       }
     }
     // If 'URL' is provided (downloading from GitHub or npmjs.com)
@@ -555,11 +602,19 @@ export async function packageCreate(
         console.log(`Calculated NetScore (rating): ${rating}`);
 
         if (rating < 0.5) {
-          throw new CustomError("Rating is below the acceptable threshold (0.5). Upload aborted.", 400);
+          throw new CustomError(
+            "Rating is below the acceptable threshold (0.5). Upload aborted.",
+            400
+          );
         }
 
         readmeContent = await extractReadme({ URL: URL }); // Extract README
-        console.log(`Extracted README content from URL: ${readmeContent.substring(0, 100)}...`); // Log a snippet of README
+        console.log(
+          `Extracted README content from URL: ${readmeContent.substring(
+            0,
+            100
+          )}...`
+        ); // Log a snippet of README
 
         if (URL.includes("npmjs.com")) {
           URL = await convertNpmUrlToGitHubUrl(URL);
@@ -567,8 +622,11 @@ export async function packageCreate(
         }
         if (URL.includes("github.com")) {
           // Extract repo owner and name
-          const repoMatch = URL.match(/github\.com\/([^/]+)\/([^/]+)(?:\/blob\/[^/]+\/.+)?$/);
-          if (!repoMatch) throw new CustomError("Invalid GitHub URL format", 400);
+          const repoMatch = URL.match(
+            /github\.com\/([^/]+)\/([^/]+)(?:\/blob\/[^/]+\/.+)?$/
+          );
+          if (!repoMatch)
+            throw new CustomError("Invalid GitHub URL format", 400);
           const owner = repoMatch[1];
           const repo = repoMatch[2];
           const apiUrl = `https://api.github.com/repos/${owner}/${repo}/zipball`;
@@ -577,11 +635,16 @@ export async function packageCreate(
           // Download the repository zip file
           zipBuffer = await downloadFile(apiUrl);
         } else {
-          throw new CustomError("Unsupported URL format. Please provide a GitHub or npmjs.com URL.", 400);
+          throw new CustomError(
+            "Unsupported URL format. Please provide a GitHub or npmjs.com URL.",
+            400
+          );
         }
-
       } catch (error: any) {
-        console.error("Error occurred in packageCreate (URL Processing):", error);
+        console.error(
+          "Error occurred in packageCreate (URL Processing):",
+          error
+        );
         throw new CustomError(
           `Failed to process package from URL: ${error.message}`,
           500
@@ -600,7 +663,10 @@ export async function packageCreate(
       returnString = uploadedReturn;
     } catch (error: any) {
       console.error("Error during debloating and upload:", error);
-      throw new CustomError(`Failed to debloat and upload package: ${error.message}`, 500);
+      throw new CustomError(
+        `Failed to debloat and upload package: ${error.message}`,
+        500
+      );
     }
 
     // Insert the package into the 'packages' table
@@ -614,8 +680,15 @@ export async function packageCreate(
       console.log("Package information inserted into the 'packages' table.");
 
       // Insert metadata into the 'package_metadata' table
-      await packageQueries.insertIntoMetadataQuery(packageName, packageVersion as string, packageId, readmeContent);
-      console.log("Package metadata inserted into the 'package_metadata' table.");
+      await packageQueries.insertIntoMetadataQuery(
+        packageName,
+        packageVersion as string,
+        packageId,
+        readmeContent
+      );
+      console.log(
+        "Package metadata inserted into the 'package_metadata' table."
+      );
 
       // Insert additional data into the 'package_data' table
       await packageQueries.insertIntoPackageDataQuery(
@@ -660,7 +733,10 @@ export async function packageCreate(
       // Return the response object
       return response;
     } catch (error: any) {
-      console.error("Error occurred in packageCreate (Database Insertion):", error);
+      console.error(
+        "Error occurred in packageCreate (Database Insertion):",
+        error
+      );
       throw new CustomError(
         `Failed to upload package or insert into database: ${error.message}`,
         500
@@ -730,11 +806,17 @@ export function packageDelete(
 }*/
 export async function packageIdCostGET(
   id: PackageID,
-  dependency? : boolean
+  dependency?: boolean
 ): Promise<{ [packageId: string]: PackageCostDetail }> {
   try {
-    const {packageName, version} = await packageQueries.getPackageDetails(id.id);
-    const costDetails = await calculateSize(packageName, version ,dependency ?? false);
+    const { packageName, version } = await packageQueries.getPackageDetails(
+      id.id
+    );
+    const costDetails = await calculateSize(
+      packageName,
+      version,
+      dependency ?? false
+    );
     return costDetails;
   } catch (error) {
     console.error("Error calculating package size:", error);
@@ -757,9 +839,9 @@ export async function packageIdCostGET(
 export async function packageRate(
   id: PackageID,
   xAuthorization: AuthenticationToken
-): Promise<PackageRating> { 
+): Promise<PackageRating> {
   try {
-    console.log(`ID inputted: ${id.id}`)
+    console.log(`ID inputted: ${id.id}`);
     const ratings = await packageQueries.getPackageRatings(id.id);
     if (!ratings) {
       console.error(`Package ratings not found for ID: ${id.id}`);
@@ -986,7 +1068,9 @@ export async function packageUpdate(
       }
       if (URL.includes("github.com")) {
         // Extract repository owner and name from the GitHub URL
-        const repoMatch = URL.match(/github\.com\/([^/]+)\/([^/]+)(?:\/blob\/[^/]+\/.+)?$/);
+        const repoMatch = URL.match(
+          /github\.com\/([^/]+)\/([^/]+)(?:\/blob\/[^/]+\/.+)?$/
+        );
         if (!repoMatch) throw new CustomError("Invalid GitHub URL format", 400);
         const owner = repoMatch[1];
         const repo = repoMatch[2];
@@ -995,9 +1079,14 @@ export async function packageUpdate(
         const packageInfo = await getPackageInfoRepo(owner, repo);
         packageName = customName || packageInfo.name;
         packageVersion = packageInfo.version || "1.0.0";
-        console.log(`Retrieved packageName: ${packageName}, packageVersion: ${packageVersion}`);
+        console.log(
+          `Retrieved packageName: ${packageName}, packageVersion: ${packageVersion}`
+        );
       } else {
-        throw new CustomError("Unsupported URL format. Provide GitHub or npmjs.com URL.", 400);
+        throw new CustomError(
+          "Unsupported URL format. Provide GitHub or npmjs.com URL.",
+          400
+        );
       }
 
       // Download and upload package to S3
@@ -1023,14 +1112,23 @@ export async function packageUpdate(
       contentBuffer = Buffer.from(Content, "base64");
 
       // Upload package to S3
-      await handleUpload(packageName!, packageVersion!, contentBuffer, debloatVal);
+      await handleUpload(
+        packageName!,
+        packageVersion!,
+        contentBuffer,
+        debloatVal
+      );
     } catch (error: any) {
       console.error("Error occurred while processing Content:", error);
       throw new CustomError(`Failed to process Content: ${error.message}`, 500);
     }
   }
 
-  if (!packageName || !packageVersion || !/^\d+\.\d+\.\d+$/.test(packageVersion)) {
+  if (
+    !packageName ||
+    !packageVersion ||
+    !/^\d+\.\d+\.\d+$/.test(packageVersion)
+  ) {
     throw new CustomError("Invalid package name or version.", 400);
   }
 
@@ -1048,28 +1146,41 @@ export async function packageUpdate(
 
   // Update metadata and data in the database
   try {
-    const readmeContent = await extractReadme({ URL: URL ?? '' });
-    console.log(`Extracted README content: ${readmeContent.substring(0, 100)}...`); // Log a snippet of README
+    const readmeContent = await extractReadme({ URL: URL ?? "" });
+    console.log(
+      `Extracted README content: ${readmeContent.substring(0, 100)}...`
+    ); // Log a snippet of README
 
-    const metrics = await calculateMetrics(URL ?? '');
+    const metrics = await calculateMetrics(URL ?? "");
     const rating = metrics?.NetScore || 0;
 
     await updatePackageMetadata(updatedPackageId, packageName, packageVersion);
-    await updatePackageData(updatedPackageId, Content ? true : false, debloatVal, JSProgram, URL);
+    await updatePackageData(
+      updatedPackageId,
+      Content ? true : false,
+      debloatVal,
+      JSProgram,
+      URL
+    );
 
     // Insert metrics if available
     if (metrics) {
-      await packageQueries.insertIntoPackageRatingsQuery(updatedPackageId, metrics);
+      await packageQueries.insertIntoPackageRatingsQuery(
+        updatedPackageId,
+        metrics
+      );
       console.log("Metrics inserted into the 'package_ratings' table.");
     }
 
     console.log("Package metadata and data updated successfully.");
   } catch (error: any) {
     console.error("Error occurred during database update:", error);
-    throw new CustomError(`Failed to update package in database: ${error.message}`, 500);
+    throw new CustomError(
+      `Failed to update package in database: ${error.message}`,
+      500
+    );
   }
 }
-
 
 /**
  * (BASELINE)
@@ -1292,18 +1403,14 @@ export async function registryReset(
  * @param xAuthorization AuthenticationToken
  * @returns Promise<Array<any>>
  */
-export function tracksGET(
-  xAuthorization: AuthenticationToken
-): any {
-
+export function tracksGET(xAuthorization: AuthenticationToken): any {
   console.log("Entered tracksGET function");
 
-    const examples: { [key: string]: any } = {
-      "application/json": 
-        {
-          "plannedTracks": "Access control track"
-        },
-    };
+  const examples: { [key: string]: any } = {
+    "application/json": {
+      plannedTracks: "Access control track",
+    },
+  };
   return examples["application/json"];
 }
 
@@ -1336,19 +1443,27 @@ export function testGET(
   });
 }
 
-export async function populatePackages(xAuthorization: AuthenticationToken): Promise<any> {
+export async function populatePackages(
+  xAuthorization: AuthenticationToken
+): Promise<any> {
   try {
     // Define the package URLs to populate
     const urls = [
       "https://www.npmjs.com/package/browserify",
-      "https://github.com/nullivex/nodist"
+      "https://github.com/nullivex/nodist",
     ];
 
     // Map each URL to a promise, correctly passing positional parameters
     const packagePromises = urls.map(async (url) => {
       try {
         // Call packageCreate with undefined for Content and pass URL as the second parameter
-        const result = await packageCreate(undefined, url, false, undefined, undefined);
+        const result = await packageCreate(
+          undefined,
+          url,
+          false,
+          undefined,
+          undefined
+        );
         return { url, success: true, result };
       } catch (error: any) {
         console.error(`Error creating package for URL ${url}:`, error);
