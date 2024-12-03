@@ -1,46 +1,56 @@
-name: Deploy production branch
+name: Deploy to EC2
 
 on:
   push:
     branches:
-      - main
+      - main # Adjust to your deployment branch
 
 jobs:
   deploy:
-    name: deploy
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        node-version: [18.x]
+
     steps:
-      - uses: actions/checkout@v3
-      - name: Use Node.js ${{ matrix.node-version }}
+      # Step 1: Checkout the repository
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # Step 2: Set up Node.js environment
+      - name: Set up Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: ${{ matrix.node-version }}
-      - run: npm ci
-      - run: echo "is this working"
-      - run: ls -la
-      - name: serverless package
-        uses: serverless/github-action@v4
-        with:
-          args: deploy
+          node-version: '18' # Use your Node.js version
+
+      # Step 3: Install dependencies and build the project
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build the project
+        run: npm run build
+
+      # Step 4: Transfer files to EC2
+      - name: Transfer files to EC2
         env:
-          # SERVERLESS_ACCESS_KEY: ${{ secrets.SERVERLESS_ACCESS_KEY }}
-          # or if using AWS credentials directly
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
-          AWS_REGION: ${{ secrets.AWS_REGION }}
-          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
-          RDS_CLUSTER_NAME: ${{ secrets.RDS_CLUSTER_NAME }}
-          RDS_USER: ${{ secrets.RDS_USER }}
-          RDS_HOST: ${{ secrets.RDS_HOST }}
-          RDS_DATABASE: ${{ secrets.RDS_DATABASE }}
-          RDS_PASSWORD: ${{ secrets.RDS_PASSWORD }}
-          RDS_PORT: ${{ secrets.RDS_PORT }}
-          SECURITY_GROUP_ID: ${{ secrets.SECURITY_GROUP_ID }}
-          SUBNET_ID_1: ${{ secrets.SUBNET_ID_1 }}
-          SUBNET_ID_2: ${{ secrets.SUBNET_ID_2 }}
-          SERVERLESS_ACCESS_KEY: ${{ secrets.SERVERLESS_ACCESS_KEY }}
-          MY_TOKEN: ${{ secrets.MY_TOKEN }}
+          PRIVATE_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
+        run: |
+          echo "$PRIVATE_KEY" > private_key.pem
+          chmod 600 private_key.pem
+          
+          rsync -avz --delete \
+            --include='dist/' --include='dist/**' \
+            --include='.env' \
+            --include='package.json' \
+            --include='SampleUrlFile.txt' \
+            --exclude='*' \
+            -e "ssh -i private_key.pem" . ubuntu@3.12.111.89:~/app3
+          
+          rm private_key.pem # Remove private key after use
+
+      # Step 5: Restart the app on EC2 (optional, if applicable)
+      - name: Restart application on EC2
+        env:
+          PRIVATE_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
+        run: |
+          echo "$PRIVATE_KEY" > private_key.pem
+          chmod 600 private_key.pem
+          ssh -i private_key.pem ubuntu@3.12.111.89 'cd ~/app3 && npm install --production && pm2 restart all || pm2 start dist/index.js --name app3'
+          rm private_key.pem

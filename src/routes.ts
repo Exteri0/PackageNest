@@ -11,6 +11,8 @@ import {
   AuthenticationToken,
 } from "./service/DefaultService.js";
 
+console.log("Routes file loaded");
+
 export default (app: Express) => {
   // POST /packages (PackagesList expects req, res, next, body, offset)
   app.post(
