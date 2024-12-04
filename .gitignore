@@ -3,6 +3,8 @@ ignorethis/
 src/config.json
 private_key.pem
 
+cert/
+
 # Logs
 logs
 *.log
