@@ -170,16 +170,10 @@ export default (app: Express) => {
     }
   );
 
-  // GET /tracks
-  app.get(
-    "/tracks",
-    (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
-      verifyJWT(req, res, next, false, false);
-    },
-    (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
-      DefaultController.tracksGET(req, res, next);
-    }
-  );
+  // GET /tracks (tracksGET expects req, res, next)
+  app.get("/tracks", (req: Request, res: Response, next: NextFunction) => {
+    DefaultController.tracksGET(req, res, next);
+  });
 
   // GET /test
   app.get(
