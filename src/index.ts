@@ -36,7 +36,7 @@ const sslServer = https.createServer(
   app
 );
 
-sslServer.listen(port, () => {
+app.listen(port, () => {
   console.log(`Server is running on https://localhost:${port}`);
   routes(app);
 });

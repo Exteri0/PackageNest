@@ -45,7 +45,7 @@ export const verifyJWT = async (
       console.log("Token not found, please login again");
       return res.status(403).json({ message: "Invalid or expired token" });
     }
-    if (foundToken.num_interactions >= 5) {
+    if (foundToken.num_interactions > 1000) {
       console.log("Token has expired");
       return res.status(403).json({ message: "Invalid or expired token" });
     } else {
