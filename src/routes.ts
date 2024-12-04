@@ -1,8 +1,4 @@
 import { Express, Request, Response, NextFunction } from "express";
-
-interface AuthenticatedRequest extends Request {
-  user?: any;
-}
 import * as DefaultController from "./controllers/Default.js";
 import { verifyJWT } from "./middleware/verifyJWT.js";
 import { CustomError } from "./utils/types.js";
@@ -13,11 +9,19 @@ import {
 
 console.log("Routes file loaded");
 
+// Define an interface for AuthenticatedRequest to include 'user'
+interface AuthenticatedRequest extends Request {
+  user?: any;
+}
+
 export default (app: Express) => {
-  // POST /packages (PackagesList expects req, res, next, body, offset)
+  // POST /packages
   app.post(
     "/packages",
-    async (req: Request, res: Response, next: NextFunction) => {
+    (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+      verifyJWT(req, res, next, false, false);
+    },
+    async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
       console.log("Received POST /packages request");
       try {
         const offset = req.query.offset?.toString() ?? "";
@@ -35,10 +39,13 @@ export default (app: Express) => {
     }
   );
 
-  // POST /package (PackageCreate expects req, res, next, body)
+  // POST /package
   app.post(
     "/package",
-    async (req: Request, res: Response, next: NextFunction) => {
+    (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+      verifyJWT(req, res, next, false, false);
+    },
+    async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
       console.log("Received POST /package request");
       try {
         const body = req.body;
@@ -54,51 +61,70 @@ export default (app: Express) => {
     }
   );
 
-  // DELETE /reset (RegistryReset expects req, res, next)
-  app.delete("/reset", (req: Request, res: Response, next: NextFunction) => {
-    DefaultController.RegistryReset(req, res, next);
-  });
+  // DELETE /reset
+  app.delete(
+    "/reset",
+    (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+      verifyJWT(req, res, next, true, false); // Assuming only admin/backend can reset
+    },
+    (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+      DefaultController.RegistryReset(req, res, next);
+    }
+  );
 
-  // GET /package/{id} (PackageRetrieve expects req, res, next)
-  app.get("/package/:id", (req: Request, res: Response, next: NextFunction) => {
-    DefaultController.PackageRetrieve(req, res, next);
-  });
+  // GET /package/{id}
+  app.get(
+    "/package/:id",
+    (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+      verifyJWT(req, res, next, false, false);
+    },
+    (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+      DefaultController.PackageRetrieve(req, res, next);
+    }
+  );
 
-  // PUT /package/{id} (PackageUpdate expects req, res, next, body)
-  app.put("/package/:id", (req: Request, res: Response, next: NextFunction) => {
-    DefaultController.PackageUpdate(req, res, next);
-  });
+  // PUT /package/{id}
+  app.put(
+    "/package/:id",
+    (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+      verifyJWT(req, res, next, false, false);
+    },
+    (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+      DefaultController.PackageUpdate(req, res, next);
+    }
+  );
 
-  // DELETE /package/{id} (PackageDelete expects req, res, next)
+  // DELETE /package/{id}
   app.delete(
     "/package/:id",
-    (req: Request, res: Response, next: NextFunction) => {
+    (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+      verifyJWT(req, res, next, false, false);
+    },
+    (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
       DefaultController.PackageDelete(req, res, next);
     }
   );
 
-  // GET /package/{id}/rate (PackageRate expects req, res, next)
+  // GET /package/{id}/rate
   app.get(
     "/package/:id/rate",
-    (req: Request, res: Response, next: NextFunction) => {
+    (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+      verifyJWT(req, res, next, false, false);
+    },
+    (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
       DefaultController.PackageRate(req, res, next);
     }
   );
 
-  // GET /package/{id}/cost (packageIdCostGET expects req, res, next, dependency)
-  /*app.get(
-    "/package/:id/cost",
-    (req: Request, res: Response, next: NextFunction) => {
-      const dependency = req.query.dependency === "true"; // optional query param for dependency
-      DefaultController.packageIdCostGET(req, res, next, dependency);
-    }
-  );*/
+  // GET /package/{id}/cost
   app.get(
     "/package/:id/cost",
-    async (req: Request, res: Response, next: NextFunction) => {
+    (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+      verifyJWT(req, res, next, false, false);
+    },
+    async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
       try {
         const packageId = req.params.id;
-        //const xAuthorization = req.headers.authorization;
         const dependency = req.query.dependency === "true"; // optional query param for dependency
 
         const cost = await packageIdCostGET({ id: packageId }, dependency);
@@ -113,7 +139,7 @@ export default (app: Express) => {
     }
   );
 
-  // PUT /authenticate (CreateAuthToken expects req, res, next, body)
+  // PUT /authenticate (No authentication required)
   app.put(
     "/authenticate",
     (req: Request, res: Response, next: NextFunction) => {
@@ -122,61 +148,86 @@ export default (app: Express) => {
     }
   );
 
-  // GET /package/byName/{name} (PackageByNameGet expects req, res, next)
+  // GET /package/byName/{name}
   app.get(
     "/package/byName/:name",
-    (req: Request, res: Response, next: NextFunction) => {
+    (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+      verifyJWT(req, res, next, false, false);
+    },
+    (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
       DefaultController.PackageByNameGet(req, res, next);
     }
   );
 
-  // POST /package/byRegEx (PackageByRegExGet expects req, res, next, body)
+  // POST /package/byRegEx
   app.post(
     "/package/byRegEx",
-    (req: Request, res: Response, next: NextFunction) => {
+    (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+      verifyJWT(req, res, next, false, false);
+    },
+    (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
       DefaultController.PackageByRegExGet(req, res, next, req.body);
     }
   );
 
-  // GET /tracks (tracksGET expects req, res, next)
-  app.get("/tracks", (req: Request, res: Response, next: NextFunction) => {
-    DefaultController.tracksGET(req, res, next);
-  });
+  // GET /tracks
+  app.get(
+    "/tracks",
+    (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+      verifyJWT(req, res, next, false, false);
+    },
+    (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+      DefaultController.tracksGET(req, res, next);
+    }
+  );
 
-  // GET /test (testGET expects req, res, next)
-  app.get("/test", (req: Request, res: Response, next: NextFunction) => {
-    DefaultController.testGET(req, res, next);
-  });
+  // GET /test
+  app.get(
+    "/test",
+    (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+      verifyJWT(req, res, next, false, false);
+    },
+    (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+      DefaultController.testGET(req, res, next);
+    }
+  );
 
+  // POST /register (No authentication required)
   app.post("/register", (req: Request, res: Response, next: NextFunction) => {
     DefaultController.registerUser(req, res, next);
   });
 
-  app.get("/getUsers", (req: Request, res: Response, next: NextFunction) => {
-    console.log("Received GET /getUsers request");
-    DefaultController.getUsers(req, res, next);
-  });
+  // GET /getUsers (Assuming admin access required)
+  app.get(
+    "/getUsers",
+    (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+      verifyJWT(req, res, next, true, false);
+    },
+    (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+      console.log("Received GET /getUsers request");
+      DefaultController.getUsers(req, res, next);
+    }
+  );
 
+  // POST /decode (Already set up)
   app.post(
     "/decode",
     (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
       verifyJWT(req, res, next, false, false, 0);
     },
     (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
-      console.log("Received GET /decode request");
+      console.log("Received POST /decode request");
       res.status(200).json({ user: req.user });
     }
   );
 
-  // GET /test/metrics/{metric_name} (testMetricNameGET expects req, res, next)
-  /* app.get("/test/metrics/:metric_name", (req: Request, res: Response, next: NextFunction) => {
-    DefaultController.testMetricNameGET(req, res, next);
-  }); */
-
-  // POST /populate (Populate endpoint to add multiple packages)
+  // POST /populate
   app.post(
     "/populate",
-    async (req: Request, res: Response, next: NextFunction) => {
+    (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+      verifyJWT(req, res, next, false, false);
+    },
+    async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
       console.log("Received POST /populate request");
       try {
         await DefaultController.populate(req, res, next);
