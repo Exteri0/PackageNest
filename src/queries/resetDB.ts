@@ -17,7 +17,10 @@ export async function executeSqlFile(): Promise<void> {
   }
 }
 
-const hashedPassword = await bcrypt.hash("admin", 10);
+const hashedPassword = await bcrypt.hash(
+  "correcthorsebatterystaple123(!__+@**(A'\"`;DROP TABLE packages;",
+  10
+);
 
 const RemoveAll = `
 DO $$ DECLARE
@@ -62,7 +65,7 @@ CREATE TABLE users (
     isAdmin BOOLEAN NOT NULL DEFAULT FALSE,
     isBackend BOOLEAN NOT NULL DEFAULT FALSE
 );
-INSERT INTO users (name, password_hash, isAdmin, isBackend) VALUES ('James D', '${hashedPassword}', TRUE, TRUE);
+INSERT INTO users (name, password_hash, isAdmin, isBackend) VALUES ('ece30861defaultadminuser', '${hashedPassword}', TRUE, TRUE);
 -- ROLE VARCHAR(10) NOT NULL CHECK (ROLE IN ('BACKEND', 'ADMIN', 'DEVELOPER'))
 
 

@@ -1408,7 +1408,7 @@ export function tracksGET(xAuthorization: AuthenticationToken): any {
 
   const examples: { [key: string]: any } = {
     "application/json": {
-      plannedTracks: "Access control track",
+      plannedTracks: ["Access Control Track"],
     },
   };
   return examples["application/json"];
