@@ -1,8 +1,11 @@
 import express, { Request, Response, NextFunction } from "express";
 import cors from "cors";
 import routes from "./routes.js";
-import serverless from "serverless-http";
 import cookieParser from "cookie-parser";
+import fs from "fs";
+import path, { dirname } from "path";
+import { fileURLToPath } from "url";
+import https from "https";
 
 const app = express();
 const port = 3000;
@@ -22,8 +25,19 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
     .json({ error: err.message || "An unexpected error occurred" });
 });
 
-app.listen(port, () => {
-  console.log(`Server is running on http://localhost:${port}`);
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+const sslServer = https.createServer(
+  {
+    key: fs.readFileSync(path.join(__dirname, "../cert/key.pem")),
+    cert: fs.readFileSync(path.join(__dirname, "../cert/cert.pem")),
+  },
+  app
+);
+
+sslServer.listen(port, () => {
+  console.log(`Server is running on https://localhost:${port}`);
   routes(app);
 });
 
@@ -31,6 +45,3 @@ app.listen(port, () => {
 // console.log("Before registering routes");
 // routes(app);
 // console.log("Routes registered");
-
-const handler = serverless(app);
-export { handler };
