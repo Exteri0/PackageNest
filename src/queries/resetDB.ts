@@ -26,7 +26,7 @@ const RemoveAll = `
 DO $$ DECLARE
     r RECORD;
 BEGIN
-    FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'public') LOOP
+    FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename != 'authentication_tokens') LOOP
         EXECUTE 'DROP TABLE IF EXISTS ' || quote_ident(r.tablename) || ' CASCADE';
     END LOOP;
 END $$;
@@ -53,7 +53,6 @@ DROP TABLE IF EXISTS package_ratings CASCADE;
 DROP TABLE IF EXISTS package_data CASCADE;
 DROP TABLE IF EXISTS package_metadata CASCADE;
 DROP TABLE IF EXISTS packages CASCADE;
-DROP TABLE IF EXISTS authentication_tokens CASCADE;
 DROP TABLE IF EXISTS users CASCADE;
 
 -- Recreate the schema
@@ -70,7 +69,7 @@ INSERT INTO users (name, password_hash, isAdmin, isBackend) VALUES ('ece30861def
 
 
 -- Authentication tokens table
-CREATE TABLE authentication_tokens (
+CREATE TABLE IF NOT EXISTS authentication_tokens (
     id SERIAL PRIMARY KEY,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     token VARCHAR(500) NOT NULL,

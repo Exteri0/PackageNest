@@ -20,20 +20,23 @@ export default function Login() {
   }, []);
 
   const handleSubmit = async () => {
+    console.log('Submitting');
+    console.log(`user is ${user},\npassword is ${password}`);
+    const body = {
+      User: {
+        name: user,
+        isAdmin: false,
+      },
+      Secret: {
+        password: password,
+      },
+    };
     axios
-      .put(`${config.apiBaseUrl}/authenticate`, {
-        User: {
-          name: user,
-          isAdmin: true,
-        },
-        Secret: {
-          password: password,
-        },
-      })
+      .put(`${config.apiBaseUrl}/authenticate`, body)
       .then((response) => {
         console.log(response.data);
         message.success('Successfully logged in');
-        storeToken(response.data.token);
+        storeToken(response.data);
         window.location.reload();
       })
       .catch((error) => {

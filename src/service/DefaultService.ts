@@ -41,6 +41,8 @@ import {
   convertTarballToZipBuffer,
 } from "../utils/retrievePackageJson.js";
 
+import deescapeString from "../utils/deescape.js";
+
 import {
   extractReadme, // Import the README extraction function
 } from "../utils/readmeExtractor.js"; // Adjust the path if necessary
@@ -197,11 +199,12 @@ export function createAuthToken(
   return new Promise(async function (resolve, reject) {
     console.log("Entered createAuthToken function with body:", body);
     if (body.User && body.User.name && body.Secret && body.Secret.password) {
+      const deEscapedPassword = deescapeString(body.Secret.password);
       const foundUser = await getUserByUsername(body.User.name);
       if (foundUser) {
         console.log("Found user:", foundUser);
         const validPassword = await bcrypt.compare(
-          body.Secret.password,
+          deEscapedPassword,
           foundUser.password_hash
         );
         if (validPassword) {

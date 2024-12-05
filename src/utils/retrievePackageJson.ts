@@ -8,15 +8,24 @@ import { PackageJson, PackageJsonResult } from "./types.js";
 import tar from "tar-stream";
 import AdmZip from "adm-zip";
 import axios from "axios";
-import { CustomError } from './types.js'; // Ensure you have this custom error class
+import { CustomError } from "./types.js"; // Ensure you have this custom error class
 
 /**
  * Helper function to parse package.json content
  */
-async function parsePackageJsonContent(content: string): Promise<PackageJsonResult> {
+async function parsePackageJsonContent(
+  content: string
+): Promise<PackageJsonResult> {
   try {
     const packageData: PackageJson = JSON.parse(content);
-    const { name, version, dependencies, devDependencies, peerDependencies, optionalDependencies } = packageData;
+    const {
+      name,
+      version,
+      dependencies,
+      devDependencies,
+      peerDependencies,
+      optionalDependencies,
+    } = packageData;
 
     console.log(`Package Name: ${name}`);
     console.log(`Package Version: ${version}`);
@@ -38,7 +47,10 @@ async function parsePackageJsonContent(content: string): Promise<PackageJsonResu
 /**
  * Function to retrieve the full package.json from a GitHub repository
  */
-export async function getPackageJson(owner: string, repo: string): Promise<PackageJsonResult> {
+export async function getPackageJson(
+  owner: string,
+  repo: string
+): Promise<PackageJsonResult> {
   const GITHUB_TOKEN = process.env.GITHUB_TOKEN || process.env.MY_TOKEN || "";
   const octokit = new Octokit({
     auth: GITHUB_TOKEN,
@@ -57,7 +69,10 @@ export async function getPackageJson(owner: string, repo: string): Promise<Packa
     }
 
     if ("content" in response.data && response.data.content) {
-      const packageJsonContent = Buffer.from(response.data.content, "base64").toString();
+      const packageJsonContent = Buffer.from(
+        response.data.content,
+        "base64"
+      ).toString();
       return await parsePackageJsonContent(packageJsonContent);
     } else {
       throw new Error("Content is not available in package.json.");
@@ -77,20 +92,27 @@ export async function getPackageJson(owner: string, repo: string): Promise<Packa
 /**
  * Function to retrieve package info (name and version) from a GitHub repository
  */
-export async function getPackageInfoRepo(owner: string, repo: string): Promise<{ name: string; version: string }> {
+export async function getPackageInfoRepo(
+  owner: string,
+  repo: string
+): Promise<{ name: string; version: string }> {
   try {
     const packageJson = await getPackageJson(owner, repo);
     return { name: packageJson.name, version: packageJson.version };
   } catch (error: any) {
     // Re-throw the error to be handled by the high-level function
-    throw new Error(`Failed to retrieve package info from repository: ${error.message}`);
+    throw new Error(
+      `Failed to retrieve package info from repository: ${error.message}`
+    );
   }
 }
 
 /**
  * Function to retrieve package info (name and version) from a ZIP file
  */
-export async function getPackageInfoZipFile(base64String: string): Promise<{ name: string; version: string }> {
+export async function getPackageInfoZipFile(
+  base64String: string
+): Promise<{ name: string; version: string }> {
   const packageJsonPath = "package.json";
   const zipBuffer = Buffer.from(base64String, "base64");
 
@@ -100,7 +122,8 @@ export async function getPackageInfoZipFile(base64String: string): Promise<{ nam
 
     // Find package.json in the zip file
     const packageJsonFile = zip.files.find(
-      (file: any) => file.path === packageJsonPath || file.path.endsWith(`/package.json`)
+      (file: any) =>
+        file.path === packageJsonPath || file.path.endsWith(`/package.json`)
     );
 
     if (!packageJsonFile) {
@@ -119,7 +142,9 @@ export async function getPackageInfoZipFile(base64String: string): Promise<{ nam
     return { name, version };
   } catch (error: any) {
     // Re-throw the error to be handled by the high-level function
-    throw new Error(`Failed to retrieve package info from ZIP file: ${error.message}`);
+    throw new Error(
+      `Failed to retrieve package info from ZIP file: ${error.message}`
+    );
   }
 }
 
@@ -133,7 +158,10 @@ export async function downloadFile(url: string): Promise<Buffer> {
     });
     return Buffer.from(response.data); // Return the binary data as a Buffer
   } catch (error: any) {
-    throw new CustomError(`Failed to download file from URL: ${error.message}`, 500);
+    throw new CustomError(
+      `Failed to download file from URL: ${error.message}`,
+      500
+    );
   }
 }
 
@@ -142,7 +170,9 @@ export async function downloadFile(url: string): Promise<Buffer> {
  * @param {Buffer} tarballBuffer - The tarball buffer.
  * @returns {Promise<Buffer>} - The zip buffer.
  */
-export async function convertTarballToZipBuffer(tarballBuffer: Buffer): Promise<Buffer> {
+export async function convertTarballToZipBuffer(
+  tarballBuffer: Buffer
+): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const extract = tar.extract();
     const zip = new AdmZip();
