@@ -25,9 +25,9 @@ export const verifyJWT = async (
         ? authHeader.split(" ")[1]
         : null; // Extract token from "Bearer <token>" format
 
+    console.log("Headers:", req.headers);
     if (!token) {
       console.log("No token provided");
-      console.log("Headers:", req.headers);
       return res.status(401).json({ message: "Access denied" });
     }
 
@@ -40,7 +40,9 @@ export const verifyJWT = async (
     req.user = decoded as JWTUser; // Attach user info to request
     console.log("Decoded token:", decoded);
     const user = await getUserByUsername(req.user.name);
+    console.log(`user in verifyJWT is: ${user}`);
     const foundToken = await getTokenByUserId(user.id);
+    console.log(`token found in verifyjwt is: ${foundToken}`);
     if (!foundToken) {
       console.log("Token not found, please login again");
       return res.status(403).json({ message: "Invalid or expired token" });

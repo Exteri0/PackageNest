@@ -24,7 +24,12 @@ export const CreateAuthToken = async (
       }
     );
     console.log(token);
-    res.json({ token: `bearer ${token}` });
+
+    // Set the Content-Type to text/plain
+    res.type("text/plain");
+
+    // Send the token as a plain string
+    res.send(`bearer ${token}`);
   } catch (error: any) {
     console.error("Error in CreateAuth controller:", error);
     if (error instanceof CustomError) {

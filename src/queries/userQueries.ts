@@ -16,7 +16,9 @@ export const getUserById = async (userId: number) => {
 export const getUserByUsername = async (username: string) => {
   const query = "SELECT * FROM users WHERE name = $1";
   try {
+    console.log(`username inside getUserByUsername query: ${username}`);
     const res = await getDbPool().query(query, [username]);
+    console.log(`result inside getUserByUsername query: ${res}`);
     return res.rows[0];
   } catch (error) {
     console.error("Error fetching user by username:", error);
