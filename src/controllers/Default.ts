@@ -270,17 +270,22 @@ export const PackageUpdate = async (
     console.log("Received ID:", id);
     console.log("Request Body:", body);
 
+
+
     const response = await Default.packageUpdate(
       id,
-      body.Content,
-      body.URL,
-      body.debloat,
+      body.metadata.Name,
+      body.metadata.Version,
+      body.metadata.ID,
+      body.data.Name,
+      body.data.Content,
+      body.data.URL,
+      body.data.debloat,
       body.JSProgram,
-      body.customName
     );
     console.log("Response from packageUpdate:", response);
 
-    res.status(200).json(response);
+    res.status(200).json("Version is updated.");
     console.log("Response sent from PackageUpdate controller");
   } catch (error: any) {
     console.error("Error in PackageUpdate controller:", error);
