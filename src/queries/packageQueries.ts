@@ -428,4 +428,34 @@ export async function updatePackageData(
   await getDbPool().query(query, [packageId, contentType, debloat, jsProgram, url]);
 }
 
+export async function insertIntoPackageHistory(
+  packageId: string,
+  userId: number,
+  action: string
+): Promise<void> {
+  try{
+    const query = `
+    INSERT INTO public.package_history (package_id, user_id, action)
+    VALUES ($1, $2, $3);
+    `;
+    await getDbPool().query(query, [packageId, userId, action]);
+  }
+  catch (error:any){
+    console.error(`Error inserting into package history: ${error}`);
+    throw new CustomError("Error inserting into package history", 500);
+  }
+}
 
+export async function getPackageHistory(packageId: string): Promise<{userId: string, action: string, timestamp: string}[]> {
+  const query = `
+    SELECT user_id, action, action_date
+    FROM public.package_history
+    WHERE package_id = $1;
+  `;
+  const result = await getDbPool().query(query, [packageId]);
+  return result.rows.map((row: any) => ({
+    userId: row.user_id,
+    action: row.action,
+    timestamp: row.action_date
+    }));
+}

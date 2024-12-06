@@ -109,7 +109,7 @@ export const PackageCreate = async (
     );
     console.log("Response from packageCreate:", response);
 
-    res.json(response);
+    res.status(201).json(response);
     console.log("Response sent from PackageCreate controller");
   } catch (error: any) {
     console.error("Error in PackageCreate controller:", error);
