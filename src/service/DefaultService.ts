@@ -63,6 +63,13 @@ export interface PackagesListResponse {
   nextOffset: number | null;
 }
 
+export interface PackageData{
+  ID: string,
+  contentType: boolean,
+  Name: string,
+  Version: string
+}
+
 export interface AuthenticationRequest {
   User: {
     name: string;
@@ -1034,18 +1041,16 @@ export async function packageUpdate(
   }
 
   // Fetch the existing package details by ID
-  const pool = getDbPool();
-  const existingPackageQuery = `SELECT name, version, content_type FROM public.packages WHERE package_id = $1`;
-  const existingPackageResult = await pool.query(existingPackageQuery, [id]);
-
-  if (existingPackageResult.rows.length === 0) {
+  
+  const existingPackageResult = await packageQueries.packageExists(id);
+  if (!existingPackageResult) {
     throw new CustomError("Package not found.", 404);
   }
 
-  const existingPackage = existingPackageResult.rows[0];
-  const existingName = existingPackage.name;
-  const existingVersion = existingPackage.version;
-  const existingContentType = existingPackage.content_type;
+  const existingPackage = existingPackageResult as PackageData;
+  const existingName = existingPackage.Name;
+  const existingVersion = existingPackage.Version;
+  const existingContentType = existingPackage.contentType;
 
   console.log(`Existing package details: ${JSON.stringify(existingPackage)}`);
 

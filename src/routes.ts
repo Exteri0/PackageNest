@@ -10,7 +10,7 @@ import {
 console.log("Routes file loaded");
 
 // Define an interface for AuthenticatedRequest to include 'user'
-interface AuthenticatedRequest extends Request {
+export interface AuthenticatedRequest extends Request {
   user?: any;
 }
 
@@ -83,14 +83,26 @@ export default (app: Express) => {
     }
   );
 
-  // PUT /package/{id}
-  app.put(
+  // POST /package/{id}
+  app.post(
     "/package/:id",
     (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
       verifyJWT(req, res, next, false, false);
     },
-    (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
-      DefaultController.PackageUpdate(req, res, next);
+    async (req: AuthenticatedRequest, res: Response, next: NextFunction)=> {
+      console.log("Received POST /package/:id request");
+      console.log("ID is:", req.params.id);
+      try {
+        const body = req.body;
+        console.log("Request Body:", body);
+
+        await DefaultController.PackageUpdate(req, res, next);
+
+        console.log("Response sent successfully");
+      } catch (error) {
+        console.error("Error in /package/:id route handler:", error);
+        next(error);
+      }
     }
   );
 

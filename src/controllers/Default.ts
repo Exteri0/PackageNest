@@ -1,6 +1,7 @@
 "use strict";
 
 import { Request, Response, NextFunction } from "express";
+import { AuthenticatedRequest } from "../routes.js";
 import * as utils from "../utils/writer.js";
 import * as Default from "../service/DefaultService.js";
 import { CustomError, OpenApiRequest } from "../utils/types.js";
@@ -8,7 +9,7 @@ import jwt from "jsonwebtoken";
 import { stringify } from "querystring";
 
 export const CreateAuthToken = async (
-  req: OpenApiRequest,
+  req: AuthenticatedRequest,
   res: Response,
   next: NextFunction,
   body: any
@@ -40,15 +41,15 @@ export const CreateAuthToken = async (
 };
 
 export const PackageByNameGet = (
-  req: OpenApiRequest,
+  req: AuthenticatedRequest,
   res: Response,
   next: NextFunction
 ): void => {
   console.log("Entered PackageByNameGet controller function");
   const name: Default.PackageName = { name: req.params.name };
   const xAuthorization: Default.AuthenticationToken = {
-    token: req.headers.authorization
-      ? req.headers.authorization.toString()
+    token: req.headers['x-authorization']
+      ? req.headers['x-authorization'].toString()
       : "",
   };
   Default.packageByNameGet(name, xAuthorization)
@@ -64,7 +65,7 @@ export const PackageByNameGet = (
 };
 
 export const PackageByRegExGet = async (
-  req: OpenApiRequest,
+  req: AuthenticatedRequest,
   res: Response,
   next: NextFunction,
   body: any
@@ -72,8 +73,8 @@ export const PackageByRegExGet = async (
   console.log("Entered PackageByRegExGet controller function");
 
   const xAuthorization: Default.AuthenticationToken = {
-    token: req.headers.authorization
-      ? req.headers.authorization.toString()
+    token: req.headers['x-authorization']
+      ? req.headers['x-authorization'].toString()
       : "",
   };
   console.log("Received xAuthorization:", JSON.stringify(xAuthorization, null, 2));
@@ -101,7 +102,7 @@ export const PackageByRegExGet = async (
 };
 
 export const PackageCreate = async (
-  req: Request,
+  req: AuthenticatedRequest,
   res: Response,
   next: NextFunction,
   body: any
@@ -109,7 +110,7 @@ export const PackageCreate = async (
   console.log("Entered PackageCreate controller function");
   try {
     const xAuthorization: Default.AuthenticationToken = {
-      token: req.headers.authorization?.toString() ?? "",
+      token: req.headers['x-authorization']?.toString() ?? "",
     };
     console.log("xAuthorization token:", xAuthorization.token);
 
@@ -135,14 +136,14 @@ export const PackageCreate = async (
 };
 
 export const PackageDelete = (
-  req: OpenApiRequest,
+  req: AuthenticatedRequest,
   res: Response,
   next: NextFunction
 ): void => {
   console.log("Entered PackageDelete controller function");
   const xAuthorization: Default.AuthenticationToken = {
-    token: req.headers.authorization
-      ? req.headers.authorization.toString()
+    token: req.headers['x-authorization']
+      ? req.headers['x-authorization'].toString()
       : "",
   };
   const id: Default.PackageID = { id: req.params.name };
@@ -159,16 +160,14 @@ export const PackageDelete = (
 };
 
 export const packageIdCostGET = (
-  req: OpenApiRequest,
+  req: AuthenticatedRequest,
   res: Response,
   next: NextFunction,
   dependency: boolean
 ): void => {
   console.log("Entered packageIdCostGET controller function");
   const xAuthorization: Default.AuthenticationToken = {
-    token: req.headers.authorization
-      ? req.headers.authorization.toString()
-      : "",
+    token: req.headers['x-authorization']?.toString() ?? "",
   };
   const id: Default.PackageID = { id: req.params.name };
   Default.packageIdCostGET(id, dependency)
@@ -184,20 +183,20 @@ export const packageIdCostGET = (
 };
 
 export const PackageRate = async (
-  req: OpenApiRequest,
+  req: AuthenticatedRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
   console.log("Entered PackageRate controller function");
   const xAuthorization: Default.AuthenticationToken = {
-    token: req.headers.authorization
-      ? req.headers.authorization.toString()
+    token: req.headers['x-authorization']
+      ? req.headers['x-authorization'].toString()
       : "",
   };
   const id: Default.PackageID = { id: req.params.id };
   try {
     const xAuthorization: Default.AuthenticationToken = {
-      token: req.headers.authorization?.toString() ?? "",
+      token: req.headers['x-authorization']?.toString() ?? "",
     };
     console.log("xAuthorization token:", xAuthorization.token);
 
@@ -216,7 +215,7 @@ export const PackageRate = async (
 };
 
 export const PackageRetrieve = async (
-  req: OpenApiRequest,
+  req: AuthenticatedRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -224,7 +223,7 @@ export const PackageRetrieve = async (
 
   // Extract and log the Authorization token
   const xAuthorization: Default.AuthenticationToken = {
-    token: req.headers.authorization ? req.headers.authorization.toString() : "",
+    token: req.headers['x-authorization']?.toString() ?? "",
   };
   console.log(`xAuthorization token: ${xAuthorization.token}`);
 
@@ -255,17 +254,20 @@ export const PackageRetrieve = async (
 
 
 export const PackageUpdate = async (
-  req: OpenApiRequest,
+  req: AuthenticatedRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
   console.log("Entered PackageUpdate controller function");
   try {
     const xAuthorization: Default.AuthenticationToken = {
-      token: req.headers.authorization?.toString() || "",
+      token: req.headers['x-authorization']?.toString() || "",
     };
     const id = req.params.id; // Extracted ID from the URL path
     const body = req.body;
+
+    console.log("Received ID:", id);
+    console.log("Request Body:", body);
 
     const response = await Default.packageUpdate(
       id,
@@ -290,7 +292,7 @@ export const PackageUpdate = async (
 };
 
 export const PackagesList = async (
-  req: Request,
+  req: AuthenticatedRequest,
   res: Response,
   next: NextFunction,
   offset?: string
@@ -299,7 +301,7 @@ export const PackagesList = async (
   console.log("Entered PackagesList controller function");
   try {
     const xAuthorization: Default.AuthenticationToken = {
-      token: req.headers.authorization?.toString() ?? "",
+      token: req.headers['x-authorization']?.toString() ?? "",
     };
     console.log("xAuthorization token received:", xAuthorization.token);
 
@@ -325,15 +327,12 @@ export const PackagesList = async (
 };
 
 export const RegistryReset = (
-  req: OpenApiRequest,
+  req: AuthenticatedRequest,
   res: Response,
   next: NextFunction
 ): void => {
-  console.log("Entered RegistryReset controller function");
   const xAuthorization: Default.AuthenticationToken = {
-    token: req.headers.authorization
-      ? req.headers.authorization.toString()
-      : "",
+    token: req.headers['x-authorization']?.toString() ?? "",
   };
   Default.registryReset(xAuthorization)
     .then((response: any) => {
@@ -348,15 +347,13 @@ export const RegistryReset = (
 };
 
 export const tracksGET = (
-  req: OpenApiRequest,
+  req: AuthenticatedRequest,
   res: Response,
   next: NextFunction
 ): void => {
   console.log("Entered tracksGET controller function");
   const xAuthorization: Default.AuthenticationToken = {
-    token: req.headers.authorization
-      ? req.headers.authorization.toString()
-      : "",
+    token: req.headers['x-authorization']?.toString() ?? "",
   };
   try {
     const tracks = Default.tracksGET(xAuthorization);
@@ -370,15 +367,13 @@ export const tracksGET = (
 };
 
 export const testGET = (
-  req: OpenApiRequest,
+  req: AuthenticatedRequest,
   res: Response,
   next: NextFunction
 ): void => {
   console.log("Entered testGET controller function");
   const xAuthorization: Default.AuthenticationToken = {
-    token: req.headers.authorization
-      ? req.headers.authorization.toString()
-      : "",
+    token: req.headers['x-authorization']?.toString() ?? "",
   };
   Default.testGET(xAuthorization)
     .then((response: any) => {
@@ -393,7 +388,7 @@ export const testGET = (
 };
 
 export function registerUser(
-  req: Request,
+  req: AuthenticatedRequest,
   res: Response,
   next: NextFunction
 ) {
@@ -409,10 +404,13 @@ export function registerUser(
 }
 
 export function getUsers(
-  req: Request,
+  req: AuthenticatedRequest,
   res: Response,
   next: NextFunction
 ) {
+  const xAuthorization: Default.AuthenticationToken = {
+    token: req.headers['x-authorization']?.toString() ?? "",
+  };
   console.log("Entered getUsers controller function");
   Default.getUsers().then((response: any) => {
     console.log("Response from getUsers:", response);
@@ -425,15 +423,13 @@ export function getUsers(
 }
 
 export const populate = (
-  req: OpenApiRequest,
+  req: AuthenticatedRequest,
   res: Response,
   next: NextFunction
 ): void => {
   console.log("Entered populate controller function");
   const xAuthorization: Default.AuthenticationToken = {
-    token: req.headers.authorization
-      ? req.headers.authorization.toString()
-      : "",
+    token: req.headers['x-authorization']?.toString() ?? "",
   };
   Default.populatePackages(xAuthorization)
     .then((response: any) => {
@@ -448,14 +444,14 @@ export const populate = (
 };
 
 /* export const testMetricNameGET = (
-  req: OpenApiRequest,
+  req: AuthenticatedRequest,
   res: Response,
   next: NextFunction
 ): void => {
   const metricName: calculate = {name: req.openapi?.pathParams?.metric_name? req.openapi.pathParams.metric_name : ""}; 
   const xAuthorization: Default.AuthenticationToken = {
-    token: req.headers.authorization
-      ? req.headers.authorization.toString()
+    token: req.headers.get('X-Authorization')
+      ? req.headers.get('X-Authorization').toString()
       : "",
   };
   if (metricName.name == "correctness") {

@@ -1,6 +1,6 @@
 import { String } from "aws-sdk/clients/batch";
 import { getDbPool } from "../service/databaseConnection.js";
-import { PackageMetadata } from "../service/DefaultService.js";
+import { PackageMetadata, PackageData } from "../service/DefaultService.js";
 import { Package, PackageQuery } from "../service/DefaultService.js";
 import { CustomError } from "../utils/types.js";
 
@@ -197,18 +197,6 @@ export const insertIntoPackageDataQuery = async (
   }
 };
 
-export const packageExistsQuery = async (
-  packageId: string
-): Promise<boolean> => {
-  const query = `SELECT EXISTS(SELECT 1 FROM public."packages" WHERE package_id = $1);`;
-  try {
-    const queryRes = await getDbPool().query(query, [packageId]);
-    return queryRes.rows[0].exists;
-  } catch (error) {
-    console.error("Error checking if package exists:", error);
-    throw error;
-  }
-};
 
 // Retrieve package details by packageId
 export const getPackageDetails = async (
@@ -228,14 +216,25 @@ export const getPackageDetails = async (
 };
 
 // Check if package exists by packageId
-export const packageExists = async (packageId: string): Promise<boolean> => {
+export const packageExists = async (packageId: string): Promise<PackageData | boolean> => {
+  console.log("Checking if package exists");
   const query = `SELECT 1 FROM public."packages" WHERE package_id = $1 LIMIT 1`;
   try {
     const res = await getDbPool().query(query, [packageId]);
-    return res.rowCount > 0;
-  } catch (error) {
+    if (res.rows.length === 0) {
+      return false;
+    }
+    else {
+      return res.rows.map((row: any) => ({
+        ID: row.package_id,
+        Name: row.name,
+        Version: row.version,
+        contentType: row.content_type
+        }))[0];
+      }
+  } catch (error:any) {
     console.error("Error checking if package exists:", error);
-    throw error;
+    throw new CustomError("Error checking if package exists", 500);
   }
 };
 
@@ -447,15 +446,21 @@ export async function insertIntoPackageHistory(
 }
 
 export async function getPackageHistory(packageId: string): Promise<{userId: string, action: string, timestamp: string}[]> {
-  const query = `
-    SELECT user_id, action, action_date
-    FROM public.package_history
-    WHERE package_id = $1;
-  `;
-  const result = await getDbPool().query(query, [packageId]);
-  return result.rows.map((row: any) => ({
-    userId: row.user_id,
-    action: row.action,
-    timestamp: row.action_date
-    }));
+  try{
+    const query = `
+      SELECT user_id, action, action_date
+      FROM public.package_history
+      WHERE package_id = $1;
+    `;
+    const result = await getDbPool().query(query, [packageId]);
+    return result.rows.map((row: any) => ({
+      userId: row.user_id,
+      action: row.action,
+      timestamp: row.action_date
+      }));
+  }
+  catch (error:any){
+    console.error(`Error fetching package history: ${error}`);
+    throw new CustomError("Error fetching package history", 500);
+  }
 }
