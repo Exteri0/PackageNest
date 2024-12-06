@@ -715,7 +715,7 @@ export async function packageCreate(
       // Prepare the response data
       const responseData: any = {
         Content: returnString,
-        JSProgram: JSProgram,
+        JSProgram: JSProgram ?? null,
       };
 
       // Include 'URL' in response if it was provided
