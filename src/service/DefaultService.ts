@@ -319,8 +319,8 @@ export async function packageByRegExGet(
   xAuthorization: AuthenticationToken
 ): Promise<Array<{ Name: string; Version: string; ID: string }>> {
   console.log("Entered packageByRegExGet function");
-  console.log("Received body:", JSON.stringify(body));
-  console.log("Received xAuthorization:", JSON.stringify(xAuthorization));
+  console.log("Received body:", JSON.stringify(body, null, 2));
+  console.log("Received xAuthorization:", JSON.stringify(xAuthorization, null, 2));
 
   // Validate request body
   if (!body || !body.RegEx) {
@@ -333,7 +333,7 @@ export async function packageByRegExGet(
     const regexQuery = `
       SELECT p.name AS name, p.version AS version, p.package_id AS package_id
       FROM public.packages p
-      JOIN public.package_metadata pm ON p.package_id = pm.package_id
+      LEFT JOIN public.package_metadata pm ON p.package_id = pm.package_id
       WHERE p.name ~* $1 OR pm.readme ~* $1
     `;
     const regexValues = [body.RegEx];
@@ -350,16 +350,27 @@ export async function packageByRegExGet(
     const response = result.rows.map((row: any) => ({
       Name: row.name,
       Version: row.version,
-      ID: row.package_id,
+      ID: row.id, // Assuming 'id' is the correct field
     }));
 
-    console.log("Returning matched packages:", JSON.stringify(response));
+    console.log("Returning matched packages:", JSON.stringify(response, null, 2));
     return response;
   } catch (error: any) {
     console.error("Error occurred in packageByRegExGet:", error);
+
+    // Handle specific regex-related SQL errors
+    if (error.code === '2201E') { // Invalid regular expression
+      throw new CustomError("Invalid regular expression.", 400);
+    }
+
+    if (error.code === '57014') { // Query canceled (e.g., due to timeout)
+      throw new CustomError("Regular expression too complex.", 400);
+    }
+
     if (error instanceof CustomError) {
       throw error; // Re-throw CustomErrors to be handled by the controller
     }
+
     throw new CustomError(`Failed to retrieve packages: ${error.message}`, 500);
   }
 }
