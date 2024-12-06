@@ -1016,12 +1016,15 @@ export async function packageRetrieve(
  * @returns Promise<void>
  */
 export async function packageUpdate(
-  id: string,
+  idParam: string,
+  metadataName: string,
+  Version: string,
+  metadataID: string,
+  dataName: string,
   Content?: string,
   URL?: string,
   debloat?: boolean,
   JSProgram?: string,
-  customName?: string
 ) {
   let packageName: string | undefined;
   let packageVersion: string | undefined;
@@ -1039,13 +1042,17 @@ export async function packageUpdate(
 
   // Fetch the existing package details by ID
   
-  const existingPackageResult = await packageQueries.packageExists(id);
+  const existingPackageResult = await packageQueries.packageExists(idParam);
   if (!existingPackageResult) {
     throw new CustomError("Package not found.", 404);
   }
 
+
   const existingPackage = existingPackageResult as PackageData;
   const existingName = existingPackage.Name;
+  if(existingName !== metadataName || idParam !== metadataID) {
+    throw new CustomError("Invalid package name in metadata or non-matching IDs", 400);
+  }
   const existingVersion = existingPackage.Version;
   const existingContentType = existingPackage.contentType;
 
@@ -1112,7 +1119,7 @@ export async function packageUpdate(
 
         // Retrieve package information from the repository's package.json
         const packageInfo = await getPackageInfoRepo(owner, repo);
-        packageName = customName || packageInfo.name;
+        packageName = dataName || packageInfo.name;
         packageVersion = packageInfo.version || "1.0.0";
         console.log(
           `Retrieved packageName: ${packageName}, packageVersion: ${packageVersion}`
@@ -1140,7 +1147,7 @@ export async function packageUpdate(
     try {
       // Retrieve package information from the provided zip file content
       const responseInfo = await getPackageInfoZipFile(Content);
-      packageName = customName || responseInfo.name; // Use customName if provided
+      packageName = dataName || responseInfo.name; // Use customName if provided
       packageVersion = responseInfo.version || "1.0.0";
 
       // Decode the base64 encoded zip file to a Buffer
