@@ -894,7 +894,7 @@ export async function packageRetrieve(
   id: string
 ) {
   console.log("Entered packageRetrieve function with ID:", id);
-  console.log("Received xAuthorization:", xAuthorization);
+  console.log("Received xAuthorization:", JSON.stringify(xAuthorization, null, 2));
 
   if (!bucketName) {
     console.error(
@@ -909,8 +909,13 @@ export async function packageRetrieve(
   try {
     // Retrieve package metadata from the packages and package_data tables using the provided ID
     const metadataQuery = `
-      SELECT p.name as packageName, p.version as packageVersion, p.package_id as packageId,
-             pd.url as packageURL, pd.js_program as packageJS, p.content_type
+      SELECT 
+        p.name AS packageName, 
+        p.version AS packageVersion, 
+        p.package_id AS packageId,
+        pd.url AS packageURL, 
+        pd.js_program AS packageJS, 
+        p.content_type
       FROM public.packages AS p
       JOIN public.package_data AS pd ON p.package_id = pd.package_id
       WHERE p.package_id = $1
@@ -922,17 +927,17 @@ export async function packageRetrieve(
       metadataValues
     );
     const metadata = metadataResult.rows[0];
+    
+    // Log the entire metadata object for debugging
+    console.log(`Metadata returned from packageRetrieve: ${JSON.stringify(metadata, null, 2)}`);
 
     if (!metadata) {
       console.error("Package not found with ID:", id);
       throw new CustomError("Package not found.", 404);
     }
 
-    console.log("Metadata of the query: ", metadata);
-
-    // Construct the S3 key to retrieve the zip file based on package_id
-    //const s3Key = `packages/${packageId}/v${packageVersion}/package.zip`;
-    const s3Key = `packages/${metadata.packagename}/v${metadata.packageversion}/package.zip`;
+    // Construct the S3 key to retrieve the zip file based on packageName and packageVersion
+    const s3Key = `packages/${metadata.packageName}/v${metadata.packageVersion}/package.zip`;
     const s3Params = {
       Bucket: bucketName,
       Key: s3Key,
@@ -952,25 +957,34 @@ export async function packageRetrieve(
     }
 
     // Prepare response in the desired format
-    const response = {
+    const response: any = {
       metadata: {
-        Name: metadata.packagename,
-        Version: metadata.packageversion,
-        ID: metadata.packageid,
+        Name: metadata.packageName,
+        Version: metadata.packageVersion,
+        ID: metadata.packageId,
       },
       data: {
         Content: content, // Base64 encoded zip content
-        JSProgram: metadata.packagejs,
+        JSProgram: metadata.packageJS !== undefined ? metadata.packageJS : null, // Set to null if undefined
       },
     };
 
-    console.log("Returning package data:", JSON.stringify(response));
+    // Include 'URL' in response if it was provided
+    if (metadata.packageURL) {
+      response.data.URL = metadata.packageURL;
+    }
+
+    console.log("Returning package data:", JSON.stringify(response, null, 2));
     return response;
   } catch (error: any) {
     console.error("Error occurred in packageRetrieve:", error);
+    if (error instanceof CustomError) {
+      throw error; // Re-throw CustomErrors to be handled by the controller
+    }
     throw new CustomError(`Failed to retrieve package: ${error.message}`, 500);
   }
 }
+
 
 /**
  * (BASELINE)

@@ -202,29 +202,44 @@ export const PackageRate = async (
   }
 };
 
-export const PackageRetrieve = (
+export const PackageRetrieve = async (
   req: OpenApiRequest,
   res: Response,
   next: NextFunction
-): void => {
+): Promise<void> => {
   console.log("Entered PackageRetrieve controller function");
+
+  // Extract and log the Authorization token
   const xAuthorization: Default.AuthenticationToken = {
-    token: req.headers.authorization
-      ? req.headers.authorization.toString()
-      : "",
+    token: req.headers.authorization ? req.headers.authorization.toString() : "",
   };
-  const id = req.params.id;
-  Default.packageRetrieve(xAuthorization, id)
-    .then((response: any) => {
-      console.log("Response from packageRetrieve:", response);
-      utils.writeJson(res, response);
-      console.log("Response sent from PackageRetrieve controller");
-    })
-    .catch((response: any) => {
-      console.error("Error in PackageRetrieve:", response);
-      utils.writeJson(res, response);
-    });
+  console.log(`xAuthorization token: ${xAuthorization.token}`);
+
+  // Extract and log the package ID from request parameters
+  const id: string = req.params.id;
+  console.log(`PackageRetrieve request ID: ${id}`);
+
+  try {
+    // Call the service layer to retrieve the package
+    const response = await Default.packageRetrieve(xAuthorization, id);
+    console.log("Response from packageRetrieve:", JSON.stringify(response, null, 2));
+
+    // Send a successful JSON response with status 200
+    res.status(200).json(response);
+    console.log("Response sent from PackageRetrieve controller");
+  } catch (error: any) {
+    console.error("Error in PackageRetrieve controller:", error);
+
+    // Handle CustomError instances with their respective status codes
+    if (error instanceof CustomError) {
+      res.status(error.status).json({ error: error.message });
+    } else {
+      // Handle all other errors with a 500 status code
+      res.status(500).json({ error: error.message || "An internal server error occurred." });
+    }
+  }
 };
+
 
 export const PackageUpdate = async (
   req: OpenApiRequest,
