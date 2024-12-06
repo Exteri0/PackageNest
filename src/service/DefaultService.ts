@@ -334,7 +334,7 @@ export async function packageByRegExGet(
       SELECT p.name AS name, p.version AS version, p.package_id AS package_id
       FROM public.packages p
       JOIN public.package_metadata pm ON p.package_id = pm.package_id
-      WHERE p.name ~ $1 OR pm.readme ~ $1
+      WHERE p.name ~* $1 OR pm.readme ~* $1
     `;
     const regexValues = [body.RegEx];
 

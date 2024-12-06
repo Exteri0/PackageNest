@@ -72,6 +72,8 @@ export default (app: Express) => {
     }
   );
 
+  
+
   // GET /package/{id}
   app.get(
     "/package/:id",
@@ -80,6 +82,17 @@ export default (app: Express) => {
     },
     (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
       DefaultController.PackageRetrieve(req, res, next);
+    }
+  );
+
+  // POST /package/byRegEx
+  app.post(
+    "/package/byRegEx",
+    (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+      verifyJWT(req, res, next, false, false);
+    },
+    (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+      DefaultController.PackageByRegExGet(req, res, next, req.body);
     }
   );
 
@@ -169,18 +182,7 @@ export default (app: Express) => {
     (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
       DefaultController.PackageByNameGet(req, res, next);
     }
-  );
-
-  // POST /package/byRegEx
-  app.post(
-    "/package/byRegEx",
-    (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
-      verifyJWT(req, res, next, false, false);
-    },
-    (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
-      DefaultController.PackageByRegExGet(req, res, next, req.body);
-    }
-  );
+  )
 
   // GET /tracks (tracksGET expects req, res, next)
   app.get("/tracks", (req: Request, res: Response, next: NextFunction) => {
