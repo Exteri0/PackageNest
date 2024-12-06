@@ -328,13 +328,6 @@ export async function packageByRegExGet(
     throw new CustomError("Invalid request body. 'RegEx' is required.", 400);
   }
 
-  // Define exception regex patterns
-  const exceptionRegexes = [
-    "ece461rules",
-    "(a{1,99999}){1,99999}$",
-    "(a|aa)*$"
-  ];
-
   try {
     // SQL query to search both package names and READMEs using the same RegEx
     const regexQuery = `
@@ -350,14 +343,7 @@ export async function packageByRegExGet(
 
     if (result.rows.length === 0) {
       console.log("No packages matched the provided regular expression.");
-      
-      if (exceptionRegexes.includes(body.RegEx)) {
-        // For exception regexes, return empty array with 200 status
-        return [];
-      } else {
-        // For other regexes, throw 404 error
-        throw new CustomError("No package found under this regex.", 404);
-      }
+      throw new CustomError("No package found under this regex.", 404);
     }
 
     // Format the response
