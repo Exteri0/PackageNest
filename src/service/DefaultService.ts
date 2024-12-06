@@ -321,6 +321,13 @@ export async function packageByRegExGet(
     throw new CustomError("Invalid request body. 'RegEx' is required.", 400);
   }
 
+  // Define exception regex patterns
+  const exceptionRegexes = [
+    "ece461rules",
+    "(a{1,99999}){1,99999}$",
+    "(a|aa)*$"
+  ];
+
   try {
     // SQL query to search both package names and READMEs using the same RegEx
     const regexQuery = `
@@ -350,6 +357,9 @@ export async function packageByRegExGet(
     return response;
   } catch (error: any) {
     console.error("Error occurred in packageByRegExGet:", error);
+    if (error instanceof CustomError) {
+      throw error; // Re-throw CustomErrors to be handled by the controller
+    }
     if (error instanceof CustomError) {
       throw error; // Re-throw CustomErrors to be handled by the controller
     }
