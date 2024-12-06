@@ -937,7 +937,7 @@ export async function packageRetrieve(
     }
 
     // Construct the S3 key to retrieve the zip file based on packageName and packageVersion
-    const s3Key = `packages/${metadata.packageName}/v${metadata.packageVersion}/package.zip`;
+    const s3Key = `packages/${metadata.packagename}/v${metadata.packageversion}/package.zip`;
     const s3Params = {
       Bucket: bucketName,
       Key: s3Key,
@@ -959,19 +959,19 @@ export async function packageRetrieve(
     // Prepare response in the desired format
     const response: any = {
       metadata: {
-        Name: metadata.packageName,
-        Version: metadata.packageVersion,
-        ID: metadata.packageId,
+        Name: metadata.packagename,
+        Version: metadata.packageversion,
+        ID: metadata.packageid,
       },
       data: {
         Content: content, // Base64 encoded zip content
-        JSProgram: metadata.packageJS !== undefined ? metadata.packageJS : null, // Set to null if undefined
+        JSProgram: metadata.packagejs !== undefined ? metadata.packagejs : null, // Set to null if undefined
       },
     };
 
     // Include 'URL' in response if it was provided
-    if (metadata.packageURL) {
-      response.data.URL = metadata.packageURL;
+    if (metadata.packageurl) {
+      response.data.URL = metadata.packageurl;
     }
 
     console.log("Returning package data:", JSON.stringify(response, null, 2));
