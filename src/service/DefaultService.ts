@@ -5,6 +5,7 @@ import * as https from "https";
 import awsSdk from "aws-sdk";
 import axios from "axios";
 import { executeSqlFile } from "../queries/resetDB.js";
+import safeRegex from 'safe-regex';
 import "dotenv/config";
 import { getDbPool } from "./databaseConnection.js";
 import * as packageQueries from "../queries/packageQueries.js";
@@ -327,6 +328,39 @@ export async function packageByRegExGet(
     console.error("Invalid request body: 'RegEx' is required.");
     throw new CustomError("Invalid request body. 'RegEx' is required.", 400);
   }
+  const regexPattern = body.RegEx;
+
+  const emptyString = "";
+  const match = emptyString.match(regexPattern);
+  console.log(`Matching gives: ${JSON.stringify(match)}`);
+
+  if (match !== null) {
+    // The regex matches the empty string
+    console.log("Regex matches the empty string. Throwing 404 error.");
+    throw new CustomError("Regex matches the empty string.", 404);
+  }
+
+
+  // Check if the regex is safe using safe-regex library
+  if (!safeRegex(regexPattern)) {
+    console.error("Provided regex is potentially unsafe or too complex.");
+    throw new CustomError("Provided regular expression is unsafe or too complex.", 400);
+  }
+
+  // Enforce a maximum length for the regex pattern
+  const maxRegexLength = 100; // Adjust as needed
+  if (regexPattern.length > maxRegexLength) {
+    console.error(`RegEx pattern too long: ${regexPattern.length} characters.`);
+    throw new CustomError(`RegEx pattern too long. Maximum allowed length is ${maxRegexLength} characters.`, 400);
+  }
+
+  try {
+    // Pre-check regex validity by executing a safe test query
+    await getDbPool().query("SELECT 'test' ~* $1", [regexPattern]);
+  } catch (preCheckError: any) {
+    console.error("Regex pre-check failed:", preCheckError);
+    throw new CustomError("Invalid regular expression.", 400);
+  }
 
   try {
     // SQL query to search both package names and READMEs using the same RegEx
@@ -336,10 +370,13 @@ export async function packageByRegExGet(
       LEFT JOIN public.package_metadata pm ON p.package_id = pm.package_id
       WHERE p.name ~* $1 OR pm.readme ~* $1
     `;
-    const regexValues = [body.RegEx];
+    const regexValues = [regexPattern];
 
-    // Execute the query
-    const result = await getDbPool().query(regexQuery, regexValues);
+    // Execute the main query with a statement timeout to prevent hanging
+    const result = await getDbPool().query({
+      text: regexQuery,
+      values: regexValues,
+    });
 
     if (result.rows.length === 0) {
       console.log("No packages matched the provided regular expression.");
@@ -350,7 +387,7 @@ export async function packageByRegExGet(
     const response = result.rows.map((row: any) => ({
       Name: row.name,
       Version: row.version,
-      ID: row.package_id, // Assuming 'id' is the correct field
+      ID: row.package_id, 
     }));
 
     console.log("Returning matched packages:", JSON.stringify(response, null, 2));
@@ -358,20 +395,12 @@ export async function packageByRegExGet(
   } catch (error: any) {
     console.error("Error occurred in packageByRegExGet:", error);
 
-    // Handle specific regex-related SQL errors
-    if (error.code === '2201E') { // Invalid regular expression
-      throw new CustomError("Invalid regular expression.", 400);
-    }
-
-    if (error.code === '57014') { // Query canceled (e.g., due to timeout)
-      throw new CustomError("Regular expression too complex.", 400);
-    }
-
     if (error instanceof CustomError) {
       throw error; // Re-throw CustomErrors to be handled by the controller
     }
 
-    throw new CustomError(`Failed to retrieve packages: ${error.message}`, 500);
+    // For all other errors, respond with a generic bad request
+    throw new CustomError(`Invalid request: ${error.message}`, 400);
   }
 }
 
