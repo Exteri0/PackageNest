@@ -59,7 +59,7 @@ const s3 = new awsSdk.S3({
  * Types
  */
 export interface PackagesListResponse {
-  packages: Package[];
+  packages: PackageMetadata[];
   nextOffset: number | null;
 }
 
@@ -1200,59 +1200,58 @@ export async function packagesList(
   xAuthorization?: AuthenticationToken
 ): Promise<PackagesListResponse> {
   console.log("Entered packagesList service function");
-  console.log("Received body:", JSON.stringify(body));
-  console.log("Received offset:", offset);
-  console.log("Received xAuthorization:", xAuthorization);
+  console.log("Authentication token:", xAuthorization?.token || "None provided");
+  console.log("Raw request body:", JSON.stringify(body));
+  console.log("Offset:", offset);
 
-  const limit = 10; // Number of items per page
+  const limit = 10;
   const offsetValue = offset ? parseInt(offset, 10) : 0;
 
   try {
     let queryParams: any[] = [];
     let whereClauses: string[] = [];
+    let packageConditions: string[] = [];
 
     if (body && body.length > 0) {
-      // Handle special case: Name is "*"
       if (body.length === 1 && body[0].Name === "*") {
-        // No where clause, select all packages
-        console.log("Selecting all packages");
+        console.log("Selecting all packages (no filtering conditions).");
       } else {
+        console.log("Processing package queries...");
         let queryIndex = 1;
-        let packageConditions: string[] = [];
 
         for (const pkgQuery of body) {
-          let conditions: string[] = [];
+          console.log("Processing pkgQuery:", pkgQuery);
+          const conditions: string[] = [];
           const queryValues: any[] = [];
 
-          // Ensure only one Version format per query
+          // Validate Version format if provided
           if (pkgQuery.Version) {
             const versionFormats = [
-              /^\d+\.\d+\.\d+$/, // Exact version
+              /^\d+\.\d+\.\d+$/,               // Exact version
               /^\d+\.\d+\.\d+-\d+\.\d+\.\d+$/, // Bounded range
-              /^\^\d+\.\d+\.\d+$/, // Carat notation
-              /^~\d+\.\d+\.\d+$/, // Tilde notation
+              /^\^\d+\.\d+\.\d+$/,             // Carat notation
+              /^~\d+\.\d+\.\d+$/               // Tilde notation
             ];
-            const matches = versionFormats.filter((regex) =>
-              regex.test(pkgQuery.Version)
-            );
+            const matches = versionFormats.filter((regex) => regex.test(pkgQuery.Version!));
             if (matches.length !== 1) {
+              console.error(`Invalid or ambiguous version format: ${pkgQuery.Version}`);
               throw new CustomError(
-                `Invalid or ambiguous version format: ${pkgQuery.Version}`,
+                "There is missing field(s) in the PackageQuery or it is formed improperly, or is invalid.",
                 400
               );
             }
           }
 
-          // Handle Name
-          if (pkgQuery.Name) {
+          // Handle Name (if not wildcard)
+          if (pkgQuery.Name && pkgQuery.Name !== "*") {
             conditions.push(`name = $${queryIndex}`);
             queryValues.push(pkgQuery.Name);
             queryIndex++;
           }
 
-          // Handle ID
+          // Handle ID (maps to package_id in DB)
           if (pkgQuery.ID) {
-            conditions.push(`id = $${queryIndex}`);
+            conditions.push(`package_id = $${queryIndex}`);
             queryValues.push(pkgQuery.ID);
             queryIndex++;
           }
@@ -1260,18 +1259,15 @@ export async function packagesList(
           // Handle Version
           if (pkgQuery.Version) {
             const version = pkgQuery.Version.trim();
-
             if (/^\d+\.\d+\.\d+$/.test(version)) {
-              // Exact version
+              // Exact
               conditions.push(`version = $${queryIndex}`);
               queryValues.push(version);
               queryIndex++;
             } else if (/^\d+\.\d+\.\d+-\d+\.\d+\.\d+$/.test(version)) {
               // Bounded range
               const [startVersion, endVersion] = version.split("-");
-              conditions.push(
-                `version >= $${queryIndex} AND version <= $${queryIndex + 1}`
-              );
+              conditions.push(`version >= $${queryIndex} AND version <= $${queryIndex + 1}`);
               queryValues.push(startVersion, endVersion);
               queryIndex += 2;
             } else if (/^\^\d+\.\d+\.\d+$/.test(version)) {
@@ -1289,7 +1285,11 @@ export async function packagesList(
               queryValues.push(`${major}.${minor}.%`);
               queryIndex++;
             } else {
-              throw new CustomError(`Invalid version format: ${version}`, 400);
+              console.error(`Invalid version format: ${version}`);
+              throw new CustomError(
+                "There is missing field(s) in the PackageQuery or it is formed improperly, or is invalid.",
+                400
+              );
             }
           }
 
@@ -1301,32 +1301,40 @@ export async function packagesList(
         }
 
         if (packageConditions.length > 0) {
+          // 'OR' relationship between queries
           whereClauses.push(packageConditions.join(" OR "));
         }
       }
     }
 
-    // Prepare query conditions and parameters
-    const packages = await packageQueries.getPackages(
-      whereClauses,
-      queryParams,
-      limit,
-      offsetValue
-    );
+    console.log("Final WHERE clauses:", whereClauses);
+    console.log("Final query parameters:", queryParams);
 
-    // Determine if there is a next page
-    const nextOffset = packages.length === limit ? offsetValue + limit : null;
+    const dbPackages = await packageQueries.getPackages(whereClauses, queryParams, limit, offsetValue);
+
+    console.log("Packages returned from DB:", JSON.stringify(dbPackages, null, 2));
+
+    const nextOffset = dbPackages.length === limit ? offsetValue + limit : null;
+
+    // Transform DB rows to required format
+    const transformedPackages = dbPackages.map((pkg) => ({
+      Version: pkg.Version,
+      Name: pkg.Name,
+      ID: pkg.ID,
+    })) as PackageMetadata[];
+
+    console.log("Transformed packages to required format:", JSON.stringify(transformedPackages, null, 2));
+    console.log("Next offset:", nextOffset);
 
     return {
-      packages,
+      packages: transformedPackages,
       nextOffset,
     };
   } catch (error) {
+    console.error("Error in packagesList:", error instanceof Error ? error.message : error);
     if (error instanceof CustomError) {
-      console.error("Error in packagesList:", error.message);
       throw error;
     } else {
-      console.error("Unexpected error in packagesList:", error);
       throw new CustomError("An unexpected error occurred.", 500);
     }
   }

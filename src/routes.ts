@@ -29,7 +29,7 @@ export default (app: Express) => {
         console.log("Offset:", offset);
         console.log("Request Body:", body);
 
-        await DefaultController.PackagesList(req, res, next, body, offset);
+        await DefaultController.PackagesList(req, res, next, offset);
 
         console.log("Response sent successfully");
       } catch (error) {

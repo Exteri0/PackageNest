@@ -1,5 +1,6 @@
 import { String } from "aws-sdk/clients/batch";
 import { getDbPool } from "../service/databaseConnection.js";
+import { PackageMetadata } from "../service/DefaultService.js";
 import { Package, PackageQuery } from "../service/DefaultService.js";
 import { CustomError } from "../utils/types.js";
 
@@ -8,24 +9,41 @@ export async function getPackages(
   queryParams: any[],
   limit: number,
   offset: number
-): Promise<Package[]> {
+): Promise<PackageMetadata[]> {
   const pool = getDbPool();
-  let queryText = `SELECT * FROM public."packages"`;
+
+  // Select explicitly the columns we need
+  let queryText = `SELECT package_id, name, version FROM public."packages"`;
 
   if (conditions.length > 0) {
     queryText += ` WHERE ${conditions.join(" AND ")}`;
   }
 
-  queryText += ` ORDER BY package_id LIMIT $${queryParams.length + 1} OFFSET $${
-    queryParams.length + 2
-  }`;
+  queryText += ` ORDER BY package_id LIMIT $${queryParams.length + 1} OFFSET $${queryParams.length + 2}`;
   const finalQueryParams = [...queryParams, limit, offset];
 
-  console.log("Executing query:", queryText);
-  console.log("With parameters:", finalQueryParams);
+  console.log("[getPackages] Executing query:", queryText);
+  console.log("[getPackages] With parameters:", JSON.stringify(finalQueryParams));
 
-  const result = await pool.query(queryText, finalQueryParams);
-  return result.rows;
+  try {
+    const result = await pool.query(queryText, finalQueryParams);
+
+    console.log("[getPackages] Query executed successfully");
+    console.log(`[getPackages] Rows returned: ${result.rows.length}`);
+    if (result.rows.length > 0) {
+      console.log("[getPackages] First returned row:", JSON.stringify(result.rows[0]));
+    }
+
+    // Map result rows to match PackageMetadata fields
+    return result.rows.map((row: any) => ({
+      ID: row.package_id,
+      Name: row.name,
+      Version: row.version
+    }));
+  } catch (error) {
+    console.error("[getPackages] Error executing query:", error);
+    throw error;
+  }
 }
 
 // Retrieve a package by ID
