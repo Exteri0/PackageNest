@@ -400,6 +400,7 @@ export async function packageCreate(
       console.log("Debloating completed successfully.");
       s3Key = `packages/${packageName}/v${packageVersion}/package.zip`;
     } else {
+      console.log("Debloating is disabled. Skipping the debloating process.");
       s3Key = `packages/${packageName}/v${packageVersion}/package.zip`;
     }
 
@@ -456,7 +457,7 @@ export async function packageCreate(
           packageName = packageInfo.name;
           packageVersion = packageInfo.version || "1.0.0";
           console.log(
-            `Retrieved packageName: ${packageName}, packageVersion: ${packageVersion}`
+            `Retrieved packageName From URL: ${packageName}, packageVersion: ${packageVersion}`
           );
         } else {
           throw new CustomError(
@@ -465,14 +466,12 @@ export async function packageCreate(
           );
         }
       } catch (error: any) {
-        console.error(
-          "Error occurred in retrieving info from package.json using URL",
-          error
-        );
-        throw new CustomError(
-          `Failed to retrieve package info from package.json using URL: ${error.message}`,
-          500
-        );
+        if (error instanceof CustomError) {
+          throw error;
+        }
+        else {
+          throw new CustomError(`Failed to retrieve package info from URL: ${error.message}`, 500);
+        }
       }
     }
     // If 'Content' is provided
@@ -505,8 +504,8 @@ export async function packageCreate(
 
     // Validate package version format "x.y.z"
     if (!/^\d+\.\d+\.\d+$/.test(packageVersion || "")) {
-      console.error("Package version is missing or invalid.");
-      throw new CustomError("Package version is missing or invalid.", 400);
+      console.log("Package version is missing or invalid., setting to 1.0.0");
+      packageVersion = "1.0.0";
     }
 
     // Generate a unique numerical package ID based on name and version
@@ -607,7 +606,7 @@ export async function packageCreate(
         if (rating < 0.5) {
           throw new CustomError(
             "Rating is below the acceptable threshold (0.5). Upload aborted.",
-            400
+            424
           );
         }
 
