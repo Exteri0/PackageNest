@@ -336,7 +336,7 @@ export async function packageByRegExGet(
 
     if (result.rows.length === 0) {
       console.log("No packages matched the provided regular expression.");
-      return [];
+      throw new CustomError("No package found under this regex.", 404);
     }
 
     // Format the response
@@ -350,6 +350,9 @@ export async function packageByRegExGet(
     return response;
   } catch (error: any) {
     console.error("Error occurred in packageByRegExGet:", error);
+    if (error instanceof CustomError) {
+      throw error; // Re-throw CustomErrors to be handled by the controller
+    }
     throw new CustomError(`Failed to retrieve packages: ${error.message}`, 500);
   }
 }

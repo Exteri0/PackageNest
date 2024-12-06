@@ -63,29 +63,43 @@ export const PackageByNameGet = (
     });
 };
 
-export const PackageByRegExGet = (
+export const PackageByRegExGet = async (
   req: OpenApiRequest,
   res: Response,
   next: NextFunction,
   body: any
-): void => {
+): Promise<void> => {
   console.log("Entered PackageByRegExGet controller function");
+
   const xAuthorization: Default.AuthenticationToken = {
     token: req.headers.authorization
       ? req.headers.authorization.toString()
       : "",
   };
-  Default.packageByRegExGet(body, xAuthorization)
-    .then((response: any) => {
-      console.log("Response from packageByRegExGet:", response);
-      utils.writeJson(res, response);
-      console.log("Response sent from PackageByRegExGet controller");
-    })
-    .catch((response: any) => {
-      console.error("Error in PackageByRegExGet:", response);
-      utils.writeJson(res, response);
-    });
+  console.log("Received xAuthorization:", JSON.stringify(xAuthorization, null, 2));
+
+  console.log(`PackageByRegExGet request body: ${JSON.stringify(body || {})}`);
+
+  try {
+    const response = await Default.packageByRegExGet(body, xAuthorization);
+    console.log("Response from packageByRegExGet:", JSON.stringify(response, null, 2));
+
+    // Since service throws 404 if no packages found, response should contain data
+    utils.writeJson(res, response);
+    console.log("Response sent from PackageByRegExGet controller with 200");
+  } catch (error: any) {
+    console.error("Error in PackageByRegExGet controller:", error);
+
+    if (error instanceof CustomError) {
+      res.status(error.status).json({ error: error.message });
+      console.log(`CustomError handled with status ${error.status}`);
+    } else {
+      res.status(500).json({ error: error.message || "An internal server error occurred." });
+      console.log("Internal server error handled with status 500");
+    }
+  }
 };
+
 
 export const PackageCreate = async (
   req: Request,
