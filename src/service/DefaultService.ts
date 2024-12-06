@@ -350,7 +350,7 @@ export async function packageByRegExGet(
     const response = result.rows.map((row: any) => ({
       Name: row.name,
       Version: row.version,
-      ID: row.id, // Assuming 'id' is the correct field
+      ID: row.package_id, // Assuming 'id' is the correct field
     }));
 
     console.log("Returning matched packages:", JSON.stringify(response, null, 2));
