@@ -1038,10 +1038,10 @@ export async function packageRetrieve(
 
 export async function packageUpdate(
   idParam: string,
-  metadataName: string,
-  Version: string,
-  metadataID: string,
-  dataName: string,
+  metadataName?: string,
+  Version?: string,
+  metadataID?: string,
+  dataName?: string,
   Content?: string,
   URL?: string,
   debloat?: boolean,
@@ -1053,6 +1053,16 @@ export async function packageUpdate(
   let contentBuffer: Buffer | undefined;
   const debloatVal = debloat ?? false;
 
+  // Fetch the existing package details by ID
+  console.log(`[INFO] Fetching existing package details for ID: ${idParam}...`);
+  const existingPackageResult = await packageQueries.packageExists(idParam);
+  console.log(`[INFO] Existing package fetched: ${JSON.stringify(existingPackageResult)}`);
+  if (!existingPackageResult) {
+    const errorMessage = `Package with ID ${idParam} not found.`;
+    console.error(`[ERROR] ${errorMessage}`);
+    throw new CustomError(errorMessage, 404);
+  }
+
   // Ensure either 'Content' or 'URL' is provided, but not both or neither
   if ((!URL && !Content) || (URL && Content)) {
     const errorMessage = "Invalid input: Provide either 'Content' or 'URL', but not both.";
@@ -1060,15 +1070,9 @@ export async function packageUpdate(
     throw new CustomError(errorMessage, 400);
   }
 
-  // Fetch the existing package details by ID
-  console.log(`[INFO] Fetching existing package details for ID: ${idParam}...`);
-  const existingPackageResult = await packageQueries.packageExists(idParam);
-  console.log(`[INFO] Existing package fetched: ${JSON.stringify(existingPackageResult)}`);
 
-  if (!existingPackageResult) {
-    const errorMessage = `Package with ID ${idParam} not found.`;
-    console.error(`[ERROR] ${errorMessage}`);
-    throw new CustomError(errorMessage, 404);
+  if(!metadataName || !metadataID || !Version) {
+    throw new CustomError("Invalid input: 'metadataName', 'metadataID', and 'Version' are required.", 400);
   }
 
   const existingPackage = existingPackageResult as PackageData;
@@ -1212,6 +1216,7 @@ export async function packageUpdate(
     const metrics = await calculateMetrics(URL ?? "");
     const rating = metrics?.NetScore || 0;
 
+    await packageQueries.insertPackageQuery(packageName, packageVersion, updatedPackageId, !URL);
     await updatePackageMetadata(updatedPackageId, packageName, packageVersion);
     await updatePackageData(
       updatedPackageId,

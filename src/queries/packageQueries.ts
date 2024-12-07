@@ -59,25 +59,6 @@ export const getPackageById = async (packageId: string) => {
   }
 };
 
-// Insert a package into RDS
-export const insertPackage = async (
-  packageName: string,
-  packageVersion: string,
-  score: number = 0.25
-) => {
-  const query = `INSERT INTO public."packages" (name, version, score) VALUES ($1, $2, $3) RETURNING package_id;`; // Change public."packages". to the tables you will insert into
-  try {
-    const res = await getDbPool().query(query, [
-      packageName,
-      packageVersion,
-      score,
-    ]);
-    return res.rows[0].id;
-  } catch (error) {
-    console.error("Error inserting package:", error);
-    throw error;
-  }
-};
 
 // Retrieve a package by name
 export const getPackageByName = async (name: string) => {
@@ -404,28 +385,36 @@ export async function updatePackageMetadata(
   name: string,
   version: string
 ): Promise<void> {
-  const query = `
-    UPDATE public.packages
-    SET name = $2, version = $3, updated_at = NOW()
-    WHERE package_id = $1;
-  `;
-  await getDbPool().query(query, [packageId, name, version]);
+  try{
+    const query = `
+    INSERT INTO public.package_metadata (package_id, name, version) VALUES ($1, $2, $3)
+    `;
+    await getDbPool().query(query, [packageId, name, version]);
+  }
+  catch(error: any){
+    console.error(`Error updating package metadata: ${error}`);
+    throw new CustomError("Error updating package metadata", 500);
+  }
 }
 
 
 export async function updatePackageData(
   packageId: string,
   contentType: boolean,
-  debloat: boolean,
+  debloat?: boolean,
   jsProgram?: string,
   url?: string
 ): Promise<void> {
-  const query = `
-    UPDATE public.package_data
-    SET content_type = $2, debloat = $3, js_program = $4, url = $5, updated_at = NOW()
-    WHERE package_id = $1;
-  `;
-  await getDbPool().query(query, [packageId, contentType, debloat, jsProgram, url]);
+  try {
+    const query = `
+    INSERT INTO public.package_data (package_id, content_type, debloat, js_program, url) VALUES ($1, $2, $3, $4, $5)
+    `;
+    await getDbPool().query(query, [packageId, contentType, debloat?? false, jsProgram?? null, url?? null]);
+  }
+  catch(error: any){
+    console.error(`Error updating package data: ${error}`);
+    throw new CustomError("Error updating package data", 500);
+  }
 }
 
 export async function insertIntoPackageHistory(
