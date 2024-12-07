@@ -5,6 +5,7 @@ import * as https from "https";
 import awsSdk from "aws-sdk";
 import axios from "axios";
 import { executeSqlFile } from "../queries/resetDB.js";
+import safeRegex from 'safe-regex';
 import "dotenv/config";
 import { getDbPool } from "./databaseConnection.js";
 import * as packageQueries from "../queries/packageQueries.js";
@@ -47,6 +48,7 @@ import {
   extractReadme, // Import the README extraction function
 } from "../utils/readmeExtractor.js"; // Adjust the path if necessary
 import { get } from "http";
+import { version } from "os";
 
 const bucketName = process.env.S3_BUCKET_NAME;
 const s3 = new awsSdk.S3({
@@ -59,8 +61,15 @@ const s3 = new awsSdk.S3({
  * Types
  */
 export interface PackagesListResponse {
-  packages: Package[];
+  packages: PackageMetadata[];
   nextOffset: number | null;
+}
+
+export interface PackageData{
+  ID: string,
+  contentType: boolean,
+  Name: string,
+  Version: string
 }
 
 export interface AuthenticationRequest {
@@ -312,13 +321,46 @@ export async function packageByRegExGet(
   xAuthorization: AuthenticationToken
 ): Promise<Array<{ Name: string; Version: string; ID: string }>> {
   console.log("Entered packageByRegExGet function");
-  console.log("Received body:", JSON.stringify(body));
-  console.log("Received xAuthorization:", JSON.stringify(xAuthorization));
+  console.log("Received body:", JSON.stringify(body, null, 2));
+  console.log("Received xAuthorization:", JSON.stringify(xAuthorization, null, 2));
 
   // Validate request body
   if (!body || !body.RegEx) {
     console.error("Invalid request body: 'RegEx' is required.");
     throw new CustomError("Invalid request body. 'RegEx' is required.", 400);
+  }
+  const regexPattern = body.RegEx;
+
+  const emptyString = "";
+  const match = emptyString.match(regexPattern);
+  console.log(`Matching gives: ${JSON.stringify(match)}`);
+
+  if (match !== null) {
+    // The regex matches the empty string
+    console.log("Regex matches the empty string. Throwing 404 error.");
+    throw new CustomError("Regex matches the empty string.", 404);
+  }
+
+
+  // Check if the regex is safe using safe-regex library
+  if (!safeRegex(regexPattern)) {
+    console.error("Provided regex is potentially unsafe or too complex.");
+    throw new CustomError("Provided regular expression is unsafe or too complex.", 400);
+  }
+
+  // Enforce a maximum length for the regex pattern
+  const maxRegexLength = 100; // Adjust as needed
+  if (regexPattern.length > maxRegexLength) {
+    console.error(`RegEx pattern too long: ${regexPattern.length} characters.`);
+    throw new CustomError(`RegEx pattern too long. Maximum allowed length is ${maxRegexLength} characters.`, 400);
+  }
+
+  try {
+    // Pre-check regex validity by executing a safe test query
+    await getDbPool().query("SELECT 'test' ~* $1", [regexPattern]);
+  } catch (preCheckError: any) {
+    console.error("Regex pre-check failed:", preCheckError);
+    throw new CustomError("Invalid regular expression.", 400);
   }
 
   try {
@@ -326,31 +368,40 @@ export async function packageByRegExGet(
     const regexQuery = `
       SELECT p.name AS name, p.version AS version, p.package_id AS package_id
       FROM public.packages p
-      JOIN public.package_metadata pm ON p.package_id = pm.package_id
-      WHERE p.name ~ $1 OR pm.readme ~ $1
+      LEFT JOIN public.package_metadata pm ON p.package_id = pm.package_id
+      WHERE p.name ~* $1 OR pm.readme ~* $1
     `;
-    const regexValues = [body.RegEx];
+    const regexValues = [regexPattern];
 
-    // Execute the query
-    const result = await getDbPool().query(regexQuery, regexValues);
+    // Execute the main query with a statement timeout to prevent hanging
+    const result = await getDbPool().query({
+      text: regexQuery,
+      values: regexValues,
+    });
 
     if (result.rows.length === 0) {
       console.log("No packages matched the provided regular expression.");
-      return [];
+      throw new CustomError("No package found under this regex.", 404);
     }
 
     // Format the response
     const response = result.rows.map((row: any) => ({
       Name: row.name,
       Version: row.version,
-      ID: row.package_id,
+      ID: row.package_id, 
     }));
 
-    console.log("Returning matched packages:", JSON.stringify(response));
+    console.log("Returning matched packages:", JSON.stringify(response, null, 2));
     return response;
   } catch (error: any) {
     console.error("Error occurred in packageByRegExGet:", error);
-    throw new CustomError(`Failed to retrieve packages: ${error.message}`, 500);
+
+    if (error instanceof CustomError) {
+      throw error; // Re-throw CustomErrors to be handled by the controller
+    }
+
+    // For all other errors, respond with a generic bad request
+    throw new CustomError(`Invalid request: ${error.message}`, 400);
   }
 }
 
@@ -400,6 +451,7 @@ export async function packageCreate(
       console.log("Debloating completed successfully.");
       s3Key = `packages/${packageName}/v${packageVersion}/package.zip`;
     } else {
+      console.log("Debloating is disabled. Skipping the debloating process.");
       s3Key = `packages/${packageName}/v${packageVersion}/package.zip`;
     }
 
@@ -456,7 +508,7 @@ export async function packageCreate(
           packageName = packageInfo.name;
           packageVersion = packageInfo.version || "1.0.0";
           console.log(
-            `Retrieved packageName: ${packageName}, packageVersion: ${packageVersion}`
+            `Retrieved packageName From URL: ${packageName}, packageVersion: ${packageVersion}`
           );
         } else {
           throw new CustomError(
@@ -465,14 +517,12 @@ export async function packageCreate(
           );
         }
       } catch (error: any) {
-        console.error(
-          "Error occurred in retrieving info from package.json using URL",
-          error
-        );
-        throw new CustomError(
-          `Failed to retrieve package info from package.json using URL: ${error.message}`,
-          500
-        );
+        if (error instanceof CustomError) {
+          throw error;
+        }
+        else {
+          throw new CustomError(`Failed to retrieve package info from URL: ${error.message}`, 500);
+        }
       }
     }
     // If 'Content' is provided
@@ -505,8 +555,8 @@ export async function packageCreate(
 
     // Validate package version format "x.y.z"
     if (!/^\d+\.\d+\.\d+$/.test(packageVersion || "")) {
-      console.error("Package version is missing or invalid.");
-      throw new CustomError("Package version is missing or invalid.", 400);
+      console.log("Package version is missing or invalid., setting to 1.0.0");
+      packageVersion = "1.0.0";
     }
 
     // Generate a unique numerical package ID based on name and version
@@ -607,7 +657,7 @@ export async function packageCreate(
         if (rating < 0.5) {
           throw new CustomError(
             "Rating is below the acceptable threshold (0.5). Upload aborted.",
-            400
+            424
           );
         }
 
@@ -715,7 +765,7 @@ export async function packageCreate(
       // Prepare the response data
       const responseData: any = {
         Content: returnString,
-        JSProgram: JSProgram,
+        JSProgram: JSProgram ?? null,
       };
 
       // Include 'URL' in response if it was provided
@@ -812,6 +862,13 @@ export async function packageIdCostGET(
   dependency?: boolean
 ): Promise<{ [packageId: string]: PackageCostDetail }> {
   try {
+    console.log(`ID inputted: ${id.id}`);
+    console.log("Checking if package exists");
+    const packageExists = await packageQueries.packageExists(id.id);
+    if(!packageExists) {
+      console.error(`Package not found with ID: ${id.id}`);
+      throw new CustomError("Package not found.", 404);
+    } 
     const { packageName, version } = await packageQueries.getPackageDetails(
       id.id
     );
@@ -821,13 +878,11 @@ export async function packageIdCostGET(
       dependency ?? false
     );
     return costDetails;
-  } catch (error) {
-    console.error("Error calculating package size:", error);
-    const errorMessage = (error as Error).message;
-    throw new CustomError(
-      `Failed to calculate package size cost: ${errorMessage}`,
-      500
-    );
+  } catch (error:any) {
+    if(error instanceof CustomError) {
+      throw error;
+    }
+    throw new CustomError("Failed to calculate package cost.", 500);
   }
 }
 
@@ -894,7 +949,7 @@ export async function packageRetrieve(
   id: string
 ) {
   console.log("Entered packageRetrieve function with ID:", id);
-  console.log("Received xAuthorization:", xAuthorization);
+  console.log("Received xAuthorization:", JSON.stringify(xAuthorization, null, 2));
 
   if (!bucketName) {
     console.error(
@@ -909,8 +964,13 @@ export async function packageRetrieve(
   try {
     // Retrieve package metadata from the packages and package_data tables using the provided ID
     const metadataQuery = `
-      SELECT p.name as packageName, p.version as packageVersion, p.package_id as packageId,
-             pd.url as packageURL, pd.js_program as packageJS, p.content_type
+      SELECT 
+        p.name AS packageName, 
+        p.version AS packageVersion, 
+        p.package_id AS packageId,
+        pd.url AS packageURL, 
+        pd.js_program AS packageJS, 
+        p.content_type
       FROM public.packages AS p
       JOIN public.package_data AS pd ON p.package_id = pd.package_id
       WHERE p.package_id = $1
@@ -922,16 +982,16 @@ export async function packageRetrieve(
       metadataValues
     );
     const metadata = metadataResult.rows[0];
+    
+    // Log the entire metadata object for debugging
+    console.log(`Metadata returned from packageRetrieve: ${JSON.stringify(metadata, null, 2)}`);
 
     if (!metadata) {
       console.error("Package not found with ID:", id);
       throw new CustomError("Package not found.", 404);
     }
 
-    console.log("Metadata of the query: ", metadata);
-
-    // Construct the S3 key to retrieve the zip file based on package_id
-    //const s3Key = `packages/${packageId}/v${packageVersion}/package.zip`;
+    // Construct the S3 key to retrieve the zip file based on packageName and packageVersion
     const s3Key = `packages/${metadata.packagename}/v${metadata.packageversion}/package.zip`;
     const s3Params = {
       Bucket: bucketName,
@@ -952,7 +1012,7 @@ export async function packageRetrieve(
     }
 
     // Prepare response in the desired format
-    const response = {
+    const response: any = {
       metadata: {
         Name: metadata.packagename,
         Version: metadata.packageversion,
@@ -960,34 +1020,37 @@ export async function packageRetrieve(
       },
       data: {
         Content: content, // Base64 encoded zip content
-        JSProgram: metadata.packagejs,
+        JSProgram: metadata.packagejs !== undefined ? metadata.packagejs : null, // Set to null if undefined
       },
     };
 
-    console.log("Returning package data:", JSON.stringify(response));
+    // Include 'URL' in response if it was provided
+    if (metadata.packageurl) {
+      response.data.URL = metadata.packageurl;
+    }
+
+    console.log("Returning package data:", JSON.stringify(response, null, 2));
     return response;
   } catch (error: any) {
     console.error("Error occurred in packageRetrieve:", error);
+    if (error instanceof CustomError) {
+      throw error; // Re-throw CustomErrors to be handled by the controller
+    }
     throw new CustomError(`Failed to retrieve package: ${error.message}`, 500);
   }
 }
 
-/**
- * (BASELINE)
- * Update the content of the package.
- *
- * @param body Package
- * @param id PackageID
- * @param xAuthorization AuthenticationToken
- * @returns Promise<void>
- */
+
 export async function packageUpdate(
-  id: string,
+  idParam: string,
+  metadataName?: string,
+  Version?: string,
+  metadataID?: string,
+  dataName?: string,
   Content?: string,
   URL?: string,
   debloat?: boolean,
   JSProgram?: string,
-  customName?: string
 ) {
   let packageName: string | undefined;
   let packageVersion: string | undefined;
@@ -995,39 +1058,51 @@ export async function packageUpdate(
   let contentBuffer: Buffer | undefined;
   const debloatVal = debloat ?? false;
 
+  // Fetch the existing package details by ID
+  console.log(`[INFO] Fetching existing package details for ID: ${idParam}...`);
+  const existingPackageResult = await packageQueries.packageExists(idParam);
+  console.log(`[INFO] Existing package fetched: ${JSON.stringify(existingPackageResult)}`);
+  if (!existingPackageResult) {
+    const errorMessage = `Package with ID ${idParam} not found.`;
+    console.error(`[ERROR] ${errorMessage}`);
+    throw new CustomError(errorMessage, 404);
+  }
+
   // Ensure either 'Content' or 'URL' is provided, but not both or neither
   if ((!URL && !Content) || (URL && Content)) {
-    throw new CustomError(
-      "Invalid input: Provide either 'Content' or 'URL', but not both.",
-      400
-    );
+    const errorMessage = "Invalid input: Provide either 'Content' or 'URL', but not both.";
+    console.error(`[ERROR] ${errorMessage}`);
+    throw new CustomError(errorMessage, 400);
   }
 
-  // Fetch the existing package details by ID
-  const pool = getDbPool();
-  const existingPackageQuery = `SELECT name, version, content_type FROM public.packages WHERE package_id = $1`;
-  const existingPackageResult = await pool.query(existingPackageQuery, [id]);
 
-  if (existingPackageResult.rows.length === 0) {
-    throw new CustomError("Package not found.", 404);
+  if(!metadataName || !metadataID || !Version) {
+    throw new CustomError("Invalid input: 'metadataName', 'metadataID', and 'Version' are required.", 400);
   }
 
-  const existingPackage = existingPackageResult.rows[0];
-  const existingName = existingPackage.name;
-  const existingVersion = existingPackage.version;
-  const existingContentType = existingPackage.content_type;
-
-  console.log(`Existing package details: ${JSON.stringify(existingPackage)}`);
+  const existingPackage = existingPackageResult as PackageData;
+  const existingName = existingPackage.Name;
+  if (existingName !== metadataName || idParam !== metadataID) {
+    const errorMessage = `Invalid package name in metadata or non-matching IDs for ${idParam}.`;
+    console.error(`[ERROR] ${errorMessage}`);
+    throw new CustomError(errorMessage, 400);
+  }
+  
+  const existingVersion = existingPackage.Version;
+  const existingContentType = existingPackage.contentType;
+  console.log(`[INFO] Existing package details: Name=${existingName}, Version=${existingVersion}, ContentType=${existingContentType}`);
 
   // Ensure update type matches the existing package
   if ((Content && !existingContentType) || (URL && existingContentType)) {
-    throw new CustomError(
-      `Invalid update type: Existing package was uploaded with ${
-        existingContentType ? "Content" : "URL"
-      }. Update must match the original type.`,
-      400
-    );
+    const errorMessage = `Invalid update type: Existing package was uploaded with ${
+      existingContentType ? "Content" : "URL"
+    }. Update must match the original type.`;
+    console.error(`[ERROR] ${errorMessage}`);
+    throw new CustomError(errorMessage, 400);
   }
+
+  console.log("Starting compareVersions");
+  // Validate the version update
 
   async function handleUpload(
     packageName: string,
@@ -1039,13 +1114,12 @@ export async function packageUpdate(
     let s3Key: string;
 
     if (debloatVal) {
-      console.log("Debloating is enabled. Starting the debloating process...");
+      console.log(`[INFO] Debloating is enabled. Starting the debloating process...`);
       finalBuffer = await debloatPackage(zipBuffer);
-      console.log("Debloating completed successfully.");
+      console.log(`[INFO] Debloating completed successfully.`);
     }
 
     s3Key = `packages/${packageName}/v${packageVersion}/package.zip`;
-
     const s3Params = {
       Bucket: process.env.S3_BUCKET_NAME!,
       Key: s3Key,
@@ -1053,24 +1127,27 @@ export async function packageUpdate(
       ContentType: "application/zip",
     };
 
-    console.log("Uploading package to S3 with key:", s3Key);
-    // Upload the package content to S3
-    await s3.putObject(s3Params).promise();
-    console.log("Package uploaded to S3 successfully.");
+    console.log(`[INFO] Uploading package to S3 with key: ${s3Key}`);
+    try {
+      await s3.putObject(s3Params).promise();
+      console.log(`[INFO] Package uploaded to S3 successfully.`);
+    } catch (err) {
+      console.error(`[ERROR] S3 upload failed: ${err}`);
+      throw new CustomError(`S3 upload failed: ${err}`, 500);
+    }
 
     return { s3Key };
   }
 
   // Process update with URL
   if (URL) {
-    console.log("Processing package update with URL...");
+    console.log(`[INFO] Processing package update with URL: ${URL}...`);
     try {
       if (URL.includes("npmjs.com")) {
         URL = await convertNpmUrlToGitHubUrl(URL);
-        console.log(`Converted npmjs.com URL to GitHub URL: ${URL}`);
+        console.log(`[INFO] Converted npmjs.com URL to GitHub URL: ${URL}`);
       }
       if (URL.includes("github.com")) {
-        // Extract repository owner and name from the GitHub URL
         const repoMatch = URL.match(
           /github\.com\/([^/]+)\/([^/]+)(?:\/blob\/[^/]+\/.+)?$/
         );
@@ -1078,13 +1155,9 @@ export async function packageUpdate(
         const owner = repoMatch[1];
         const repo = repoMatch[2];
 
-        // Retrieve package information from the repository's package.json
-        const packageInfo = await getPackageInfoRepo(owner, repo);
-        packageName = customName || packageInfo.name;
-        packageVersion = packageInfo.version || "1.0.0";
-        console.log(
-          `Retrieved packageName: ${packageName}, packageVersion: ${packageVersion}`
-        );
+        packageName = dataName;
+        packageVersion = Version || "1.0.0";
+        console.log(`[INFO] Retrieved packageName: ${packageName}, packageVersion: ${packageVersion}`);
       } else {
         throw new CustomError(
           "Unsupported URL format. Provide GitHub or npmjs.com URL.",
@@ -1092,38 +1165,51 @@ export async function packageUpdate(
         );
       }
 
-      // Download and upload package to S3
-      console.log("Downloading package from URL...");
+      if (!compareVersions(packageVersion, existingVersion)) {
+        throw new CustomError(
+          `Invalid version update: Existing version is ${existingVersion}. Update must be a newer patch version.`,
+          400
+        );
+      }
+
+      console.log(`[INFO] Downloading package from URL: ${URL}...`);
       const fileBuffer = await downloadFile(URL);
       await handleUpload(packageName!, packageVersion!, fileBuffer, debloatVal);
     } catch (error: any) {
-      console.error("Error occurred while processing URL:", error);
+      if(error instanceof CustomError) {
+        throw error;
+      }
+      console.error(`[ERROR] Error occurred while processing URL: ${error}`);
       throw new CustomError(`Failed to process URL: ${error.message}`, 500);
     }
   }
 
   // Process update with Content
   if (Content) {
-    console.log("Processing package update with Content...");
+    console.log(`[INFO] Processing package update with provided content...`);
     try {
-      // Retrieve package information from the provided zip file content
       const responseInfo = await getPackageInfoZipFile(Content);
-      packageName = customName || responseInfo.name; // Use customName if provided
-      packageVersion = responseInfo.version || "1.0.0";
+      packageName = dataName || responseInfo.name; // Use customName if provided
+      packageVersion = Version || responseInfo.version || "1.0.0";
+      console.log(`[INFO] Package info retrieved from zip file: Name=${packageName}, Version=${packageVersion}`);
 
-      // Decode the base64 encoded zip file to a Buffer
+      if (!compareVersions(packageVersion, existingVersion)) {
+        throw new CustomError(
+          `Invalid version update: Existing version is ${existingVersion}. Update must be a newer patch version.`,
+          400
+        );
+      }
+
       contentBuffer = Buffer.from(Content, "base64");
 
-      // Upload package to S3
-      await handleUpload(
-        packageName!,
-        packageVersion!,
-        contentBuffer,
-        debloatVal
-      );
+      console.log(`[INFO] Uploading package content to S3...`);
+      await handleUpload(packageName!, packageVersion!, contentBuffer, debloatVal);
     } catch (error: any) {
-      console.error("Error occurred while processing Content:", error);
-      throw new CustomError(`Failed to process Content: ${error.message}`, 500);
+      if(error instanceof CustomError) {
+        throw error;
+      }
+      console.error(`[ERROR] Error occurred while processing content: ${error}`);
+      throw new CustomError(`Failed to process content: ${error.message}`, 500);
     }
   }
 
@@ -1133,14 +1219,6 @@ export async function packageUpdate(
     !/^\d+\.\d+\.\d+$/.test(packageVersion)
   ) {
     throw new CustomError("Invalid package name or version.", 400);
-  }
-
-  // Validate the version update
-  if (!compareVersions(packageVersion, existingVersion)) {
-    throw new CustomError(
-      `Invalid version update: Existing version is ${existingVersion}. Update must not be a lower patch version.`,
-      400
-    );
   }
 
   // Generate a new package ID for the updated package
@@ -1157,6 +1235,7 @@ export async function packageUpdate(
     const metrics = await calculateMetrics(URL ?? "");
     const rating = metrics?.NetScore || 0;
 
+    await packageQueries.insertPackageQuery(packageName, packageVersion, updatedPackageId, !URL);
     await updatePackageMetadata(updatedPackageId, packageName, packageVersion);
     await updatePackageData(
       updatedPackageId,
@@ -1177,6 +1256,9 @@ export async function packageUpdate(
 
     console.log("Package metadata and data updated successfully.");
   } catch (error: any) {
+    if(error instanceof CustomError) {
+      throw error;
+    }
     console.error("Error occurred during database update:", error);
     throw new CustomError(
       `Failed to update package in database: ${error.message}`,
@@ -1200,59 +1282,58 @@ export async function packagesList(
   xAuthorization?: AuthenticationToken
 ): Promise<PackagesListResponse> {
   console.log("Entered packagesList service function");
-  console.log("Received body:", JSON.stringify(body));
-  console.log("Received offset:", offset);
-  console.log("Received xAuthorization:", xAuthorization);
+  console.log("Authentication token:", xAuthorization?.token || "None provided");
+  console.log("Raw request body:", JSON.stringify(body));
+  console.log("Offset:", offset);
 
-  const limit = 10; // Number of items per page
+  const limit = 10;
   const offsetValue = offset ? parseInt(offset, 10) : 0;
 
   try {
     let queryParams: any[] = [];
     let whereClauses: string[] = [];
+    let packageConditions: string[] = [];
 
     if (body && body.length > 0) {
-      // Handle special case: Name is "*"
       if (body.length === 1 && body[0].Name === "*") {
-        // No where clause, select all packages
-        console.log("Selecting all packages");
+        console.log("Selecting all packages (no filtering conditions).");
       } else {
+        console.log("Processing package queries...");
         let queryIndex = 1;
-        let packageConditions: string[] = [];
 
         for (const pkgQuery of body) {
-          let conditions: string[] = [];
+          console.log("Processing pkgQuery:", pkgQuery);
+          const conditions: string[] = [];
           const queryValues: any[] = [];
 
-          // Ensure only one Version format per query
+          // Validate Version format if provided
           if (pkgQuery.Version) {
             const versionFormats = [
-              /^\d+\.\d+\.\d+$/, // Exact version
+              /^\d+\.\d+\.\d+$/,               // Exact version
               /^\d+\.\d+\.\d+-\d+\.\d+\.\d+$/, // Bounded range
-              /^\^\d+\.\d+\.\d+$/, // Carat notation
-              /^~\d+\.\d+\.\d+$/, // Tilde notation
+              /^\^\d+\.\d+\.\d+$/,             // Carat notation
+              /^~\d+\.\d+\.\d+$/               // Tilde notation
             ];
-            const matches = versionFormats.filter((regex) =>
-              regex.test(pkgQuery.Version)
-            );
+            const matches = versionFormats.filter((regex) => regex.test(pkgQuery.Version!));
             if (matches.length !== 1) {
+              console.error(`Invalid or ambiguous version format: ${pkgQuery.Version}`);
               throw new CustomError(
-                `Invalid or ambiguous version format: ${pkgQuery.Version}`,
+                "There is missing field(s) in the PackageQuery or it is formed improperly, or is invalid.",
                 400
               );
             }
           }
 
-          // Handle Name
-          if (pkgQuery.Name) {
+          // Handle Name (if not wildcard)
+          if (pkgQuery.Name && pkgQuery.Name !== "*") {
             conditions.push(`name = $${queryIndex}`);
             queryValues.push(pkgQuery.Name);
             queryIndex++;
           }
 
-          // Handle ID
+          // Handle ID (maps to package_id in DB)
           if (pkgQuery.ID) {
-            conditions.push(`id = $${queryIndex}`);
+            conditions.push(`package_id = $${queryIndex}`);
             queryValues.push(pkgQuery.ID);
             queryIndex++;
           }
@@ -1260,18 +1341,15 @@ export async function packagesList(
           // Handle Version
           if (pkgQuery.Version) {
             const version = pkgQuery.Version.trim();
-
             if (/^\d+\.\d+\.\d+$/.test(version)) {
-              // Exact version
+              // Exact
               conditions.push(`version = $${queryIndex}`);
               queryValues.push(version);
               queryIndex++;
             } else if (/^\d+\.\d+\.\d+-\d+\.\d+\.\d+$/.test(version)) {
               // Bounded range
               const [startVersion, endVersion] = version.split("-");
-              conditions.push(
-                `version >= $${queryIndex} AND version <= $${queryIndex + 1}`
-              );
+              conditions.push(`version >= $${queryIndex} AND version <= $${queryIndex + 1}`);
               queryValues.push(startVersion, endVersion);
               queryIndex += 2;
             } else if (/^\^\d+\.\d+\.\d+$/.test(version)) {
@@ -1289,7 +1367,11 @@ export async function packagesList(
               queryValues.push(`${major}.${minor}.%`);
               queryIndex++;
             } else {
-              throw new CustomError(`Invalid version format: ${version}`, 400);
+              console.error(`Invalid version format: ${version}`);
+              throw new CustomError(
+                "There is missing field(s) in the PackageQuery or it is formed improperly, or is invalid.",
+                400
+              );
             }
           }
 
@@ -1301,32 +1383,40 @@ export async function packagesList(
         }
 
         if (packageConditions.length > 0) {
+          // 'OR' relationship between queries
           whereClauses.push(packageConditions.join(" OR "));
         }
       }
     }
 
-    // Prepare query conditions and parameters
-    const packages = await packageQueries.getPackages(
-      whereClauses,
-      queryParams,
-      limit,
-      offsetValue
-    );
+    console.log("Final WHERE clauses:", whereClauses);
+    console.log("Final query parameters:", queryParams);
 
-    // Determine if there is a next page
-    const nextOffset = packages.length === limit ? offsetValue + limit : null;
+    const dbPackages = await packageQueries.getPackages(whereClauses, queryParams, limit, offsetValue);
+
+    console.log("Packages returned from DB:", JSON.stringify(dbPackages, null, 2));
+
+    const nextOffset = dbPackages.length === limit ? offsetValue + limit : null;
+
+    // Transform DB rows to required format
+    const transformedPackages = dbPackages.map((pkg) => ({
+      Version: pkg.Version,
+      Name: pkg.Name,
+      ID: pkg.ID,
+    })) as PackageMetadata[];
+
+    console.log("Transformed packages to required format:", JSON.stringify(transformedPackages, null, 2));
+    console.log("Next offset:", nextOffset);
 
     return {
-      packages,
+      packages: transformedPackages,
       nextOffset,
     };
   } catch (error) {
+    console.error("Error in packagesList:", error instanceof Error ? error.message : error);
     if (error instanceof CustomError) {
-      console.error("Error in packagesList:", error.message);
       throw error;
     } else {
-      console.error("Unexpected error in packagesList:", error);
       throw new CustomError("An unexpected error occurred.", 500);
     }
   }

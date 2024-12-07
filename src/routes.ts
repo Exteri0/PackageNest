@@ -10,7 +10,7 @@ import {
 console.log("Routes file loaded");
 
 // Define an interface for AuthenticatedRequest to include 'user'
-interface AuthenticatedRequest extends Request {
+export interface AuthenticatedRequest extends Request {
   user?: any;
 }
 
@@ -29,7 +29,7 @@ export default (app: Express) => {
         console.log("Offset:", offset);
         console.log("Request Body:", body);
 
-        await DefaultController.PackagesList(req, res, next, body, offset);
+        await DefaultController.PackagesList(req, res, next, offset);
 
         console.log("Response sent successfully");
       } catch (error) {
@@ -72,6 +72,8 @@ export default (app: Express) => {
     }
   );
 
+  
+
   // GET /package/{id}
   app.get(
     "/package/:id",
@@ -83,14 +85,37 @@ export default (app: Express) => {
     }
   );
 
-  // PUT /package/{id}
-  app.put(
-    "/package/:id",
+  // POST /package/byRegEx
+  app.post(
+    "/package/byRegEx",
     (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
       verifyJWT(req, res, next, false, false);
     },
     (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
-      DefaultController.PackageUpdate(req, res, next);
+      DefaultController.PackageByRegExGet(req, res, next, req.body);
+    }
+  );
+
+  // POST /package/{id}
+  app.post(
+    "/package/:id",
+    (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+      verifyJWT(req, res, next, false, false);
+    },
+    async (req: AuthenticatedRequest, res: Response, next: NextFunction)=> {
+      console.log("Received POST /package/:id request");
+      console.log("ID is:", req.params.id);
+      try {
+        const body = req.body;
+        console.log("Request Body:", body);
+
+        await DefaultController.PackageUpdate(req, res, next);
+
+        console.log("Response sent successfully");
+      } catch (error) {
+        console.error("Error in /package/:id route handler:", error);
+        next(error);
+      }
     }
   );
 
@@ -124,17 +149,11 @@ export default (app: Express) => {
     },
     async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
       try {
-        const packageId = req.params.id;
-        const dependency = req.query.dependency === "true"; // optional query param for dependency
-
-        const cost = await packageIdCostGET({ id: packageId }, dependency);
-        res.json(cost);
+        console.log("Received GET /package/:id/cost request");
+        await DefaultController.packageIdCostGET(req, res, next);
       } catch (error) {
-        if (error instanceof CustomError) {
-          res.status(error.status || 500).json({ message: error.message });
-        } else {
-          next(error); // Pass to default error handler
-        }
+        console.error("Error in /package/:id/cost route handler:", error);
+        next(error);
       }
     }
   );
@@ -157,18 +176,7 @@ export default (app: Express) => {
     (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
       DefaultController.PackageByNameGet(req, res, next);
     }
-  );
-
-  // POST /package/byRegEx
-  app.post(
-    "/package/byRegEx",
-    (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
-      verifyJWT(req, res, next, false, false);
-    },
-    (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
-      DefaultController.PackageByRegExGet(req, res, next, req.body);
-    }
-  );
+  )
 
   // GET /tracks (tracksGET expects req, res, next)
   app.get("/tracks", (req: Request, res: Response, next: NextFunction) => {

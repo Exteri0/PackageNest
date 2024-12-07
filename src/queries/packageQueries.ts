@@ -1,5 +1,6 @@
 import { String } from "aws-sdk/clients/batch";
 import { getDbPool } from "../service/databaseConnection.js";
+import { PackageMetadata, PackageData } from "../service/DefaultService.js";
 import { Package, PackageQuery } from "../service/DefaultService.js";
 import { CustomError } from "../utils/types.js";
 
@@ -8,24 +9,41 @@ export async function getPackages(
   queryParams: any[],
   limit: number,
   offset: number
-): Promise<Package[]> {
+): Promise<PackageMetadata[]> {
   const pool = getDbPool();
-  let queryText = `SELECT * FROM public."packages"`;
+
+  // Select explicitly the columns we need
+  let queryText = `SELECT package_id, name, version FROM public."packages"`;
 
   if (conditions.length > 0) {
     queryText += ` WHERE ${conditions.join(" AND ")}`;
   }
 
-  queryText += ` ORDER BY package_id LIMIT $${queryParams.length + 1} OFFSET $${
-    queryParams.length + 2
-  }`;
+  queryText += ` ORDER BY package_id LIMIT $${queryParams.length + 1} OFFSET $${queryParams.length + 2}`;
   const finalQueryParams = [...queryParams, limit, offset];
 
-  console.log("Executing query:", queryText);
-  console.log("With parameters:", finalQueryParams);
+  console.log("[getPackages] Executing query:", queryText);
+  console.log("[getPackages] With parameters:", JSON.stringify(finalQueryParams));
 
-  const result = await pool.query(queryText, finalQueryParams);
-  return result.rows;
+  try {
+    const result = await pool.query(queryText, finalQueryParams);
+
+    console.log("[getPackages] Query executed successfully");
+    console.log(`[getPackages] Rows returned: ${result.rows.length}`);
+    if (result.rows.length > 0) {
+      console.log("[getPackages] First returned row:", JSON.stringify(result.rows[0]));
+    }
+
+    // Map result rows to match PackageMetadata fields
+    return result.rows.map((row: any) => ({
+      ID: row.package_id,
+      Name: row.name,
+      Version: row.version
+    }));
+  } catch (error) {
+    console.error("[getPackages] Error executing query:", error);
+    throw error;
+  }
 }
 
 // Retrieve a package by ID
@@ -41,25 +59,6 @@ export const getPackageById = async (packageId: string) => {
   }
 };
 
-// Insert a package into RDS
-export const insertPackage = async (
-  packageName: string,
-  packageVersion: string,
-  score: number = 0.25
-) => {
-  const query = `INSERT INTO public."packages" (name, version, score) VALUES ($1, $2, $3) RETURNING package_id;`; // Change public."packages". to the tables you will insert into
-  try {
-    const res = await getDbPool().query(query, [
-      packageName,
-      packageVersion,
-      score,
-    ]);
-    return res.rows[0].id;
-  } catch (error) {
-    console.error("Error inserting package:", error);
-    throw error;
-  }
-};
 
 // Retrieve a package by name
 export const getPackageByName = async (name: string) => {
@@ -179,18 +178,6 @@ export const insertIntoPackageDataQuery = async (
   }
 };
 
-export const packageExistsQuery = async (
-  packageId: string
-): Promise<boolean> => {
-  const query = `SELECT EXISTS(SELECT 1 FROM public."packages" WHERE package_id = $1);`;
-  try {
-    const queryRes = await getDbPool().query(query, [packageId]);
-    return queryRes.rows[0].exists;
-  } catch (error) {
-    console.error("Error checking if package exists:", error);
-    throw error;
-  }
-};
 
 // Retrieve package details by packageId
 export const getPackageDetails = async (
@@ -210,14 +197,26 @@ export const getPackageDetails = async (
 };
 
 // Check if package exists by packageId
-export const packageExists = async (packageId: string): Promise<boolean> => {
-  const query = `SELECT 1 FROM public."packages" WHERE package_id = $1 LIMIT 1`;
+export const packageExists = async (packageId: string): Promise<PackageData | boolean> => {
+  console.log("Checking if package exists");
+  const query = `SELECT name, version, package_id FROM public."packages" WHERE package_id = $1 LIMIT 1`;
   try {
     const res = await getDbPool().query(query, [packageId]);
-    return res.rowCount > 0;
-  } catch (error) {
+    console.log("Query result:", JSON.stringify(res.rows));
+    if (res.rows.length === 0) {
+      return false;
+    }
+    else {
+      return res.rows.map((row: any) => ({
+        ID: row.package_id,
+        Name: row.name,
+        Version: row.version,
+        contentType: row.content_type
+        }))[0];
+      }
+  } catch (error:any) {
     console.error("Error checking if package exists:", error);
-    throw error;
+    throw new CustomError("Error checking if package exists", 500);
   }
 };
 
@@ -386,28 +385,72 @@ export async function updatePackageMetadata(
   name: string,
   version: string
 ): Promise<void> {
-  const query = `
-    UPDATE public.packages
-    SET name = $2, version = $3, updated_at = NOW()
-    WHERE package_id = $1;
-  `;
-  await getDbPool().query(query, [packageId, name, version]);
+  try{
+    const query = `
+    INSERT INTO public.package_metadata (package_id, name, version) VALUES ($1, $2, $3)
+    `;
+    await getDbPool().query(query, [packageId, name, version]);
+  }
+  catch(error: any){
+    console.error(`Error updating package metadata: ${error}`);
+    throw new CustomError("Error updating package metadata", 500);
+  }
 }
 
 
 export async function updatePackageData(
   packageId: string,
   contentType: boolean,
-  debloat: boolean,
+  debloat?: boolean,
   jsProgram?: string,
   url?: string
 ): Promise<void> {
-  const query = `
-    UPDATE public.package_data
-    SET content_type = $2, debloat = $3, js_program = $4, url = $5, updated_at = NOW()
-    WHERE package_id = $1;
-  `;
-  await getDbPool().query(query, [packageId, contentType, debloat, jsProgram, url]);
+  try {
+    const query = `
+    INSERT INTO public.package_data (package_id, content_type, debloat, js_program, url) VALUES ($1, $2, $3, $4, $5)
+    `;
+    await getDbPool().query(query, [packageId, contentType, debloat?? false, jsProgram?? null, url?? null]);
+  }
+  catch(error: any){
+    console.error(`Error updating package data: ${error}`);
+    throw new CustomError("Error updating package data", 500);
+  }
 }
 
+export async function insertIntoPackageHistory(
+  packageId: string,
+  userId: number,
+  action: string
+): Promise<void> {
+  try{
+    const query = `
+    INSERT INTO public.package_history (package_id, user_id, action)
+    VALUES ($1, $2, $3);
+    `;
+    await getDbPool().query(query, [packageId, userId, action]);
+  }
+  catch (error:any){
+    console.error(`Error inserting into package history: ${error}`);
+    throw new CustomError("Error inserting into package history", 500);
+  }
+}
 
+export async function getPackageHistory(packageId: string): Promise<{userId: string, action: string, timestamp: string}[]> {
+  try{
+    const query = `
+      SELECT user_id, action, action_date
+      FROM public.package_history
+      WHERE package_id = $1;
+    `;
+    const result = await getDbPool().query(query, [packageId]);
+    return result.rows.map((row: any) => ({
+      userId: row.user_id,
+      action: row.action,
+      timestamp: row.action_date
+      }));
+  }
+  catch (error:any){
+    console.error(`Error fetching package history: ${error}`);
+    throw new CustomError("Error fetching package history", 500);
+  }
+}

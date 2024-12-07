@@ -28,7 +28,7 @@ export const verifyJWT = async (
     console.log("Headers:", req.headers);
     if (!token) {
       console.log("No token provided");
-      return res.status(401).json({ message: "Access denied" });
+      return res.status(403).json({ message: "Access denied" });
     }
 
     const decoded = jwt.verify(token as string, JWT_SECRET);
