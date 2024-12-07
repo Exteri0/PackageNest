@@ -1096,6 +1096,9 @@ export async function packageUpdate(
     throw new CustomError(errorMessage, 400);
   }
 
+  console.log("Starting compareVersions");
+  // Validate the version update
+
   async function handleUpload(
     packageName: string,
     packageVersion: string,
@@ -1157,10 +1160,20 @@ export async function packageUpdate(
         );
       }
 
+      if (!compareVersions(packageVersion, existingVersion)) {
+        throw new CustomError(
+          `Invalid version update: Existing version is ${existingVersion}. Update must be a newer patch version.`,
+          400
+        );
+      }
+
       console.log(`[INFO] Downloading package from URL: ${URL}...`);
       const fileBuffer = await downloadFile(URL);
       await handleUpload(packageName!, packageVersion!, fileBuffer, debloatVal);
     } catch (error: any) {
+      if(error instanceof CustomError) {
+        throw error;
+      }
       console.error(`[ERROR] Error occurred while processing URL: ${error}`);
       throw new CustomError(`Failed to process URL: ${error.message}`, 500);
     }
@@ -1172,14 +1185,24 @@ export async function packageUpdate(
     try {
       const responseInfo = await getPackageInfoZipFile(Content);
       packageName = dataName || responseInfo.name; // Use customName if provided
-      packageVersion = responseInfo.version || "1.0.0";
+      packageVersion = Version || responseInfo.version || "1.0.0";
       console.log(`[INFO] Package info retrieved from zip file: Name=${packageName}, Version=${packageVersion}`);
+
+      if (!compareVersions(packageVersion, existingVersion)) {
+        throw new CustomError(
+          `Invalid version update: Existing version is ${existingVersion}. Update must be a newer patch version.`,
+          400
+        );
+      }
 
       contentBuffer = Buffer.from(Content, "base64");
 
       console.log(`[INFO] Uploading package content to S3...`);
       await handleUpload(packageName!, packageVersion!, contentBuffer, debloatVal);
     } catch (error: any) {
+      if(error instanceof CustomError) {
+        throw error;
+      }
       console.error(`[ERROR] Error occurred while processing content: ${error}`);
       throw new CustomError(`Failed to process content: ${error.message}`, 500);
     }
@@ -1191,15 +1214,6 @@ export async function packageUpdate(
     !/^\d+\.\d+\.\d+$/.test(packageVersion)
   ) {
     throw new CustomError("Invalid package name or version.", 400);
-  }
-
-  console.log("Starting compareVersions");
-  // Validate the version update
-  if (!compareVersions(packageVersion, existingVersion)) {
-    throw new CustomError(
-      `Invalid version update: Existing version is ${existingVersion}. Update must not be a lower patch version.`,
-      400
-    );
   }
 
   // Generate a new package ID for the updated package
@@ -1237,6 +1251,9 @@ export async function packageUpdate(
 
     console.log("Package metadata and data updated successfully.");
   } catch (error: any) {
+    if(error instanceof CustomError) {
+      throw error;
+    }
     console.error("Error occurred during database update:", error);
     throw new CustomError(
       `Failed to update package in database: ${error.message}`,
