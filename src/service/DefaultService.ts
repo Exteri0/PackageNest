@@ -862,6 +862,13 @@ export async function packageIdCostGET(
   dependency?: boolean
 ): Promise<{ [packageId: string]: PackageCostDetail }> {
   try {
+    console.log(`ID inputted: ${id.id}`);
+    console.log("Checking if package exists");
+    const packageExists = await packageQueries.packageExists(id.id);
+    if(!packageExists) {
+      console.error(`Package not found with ID: ${id.id}`);
+      throw new CustomError("Package not found.", 404);
+    } 
     const { packageName, version } = await packageQueries.getPackageDetails(
       id.id
     );
@@ -871,13 +878,11 @@ export async function packageIdCostGET(
       dependency ?? false
     );
     return costDetails;
-  } catch (error) {
-    console.error("Error calculating package size:", error);
-    const errorMessage = (error as Error).message;
-    throw new CustomError(
-      `Failed to calculate package size cost: ${errorMessage}`,
-      500
-    );
+  } catch (error:any) {
+    if(error instanceof CustomError) {
+      throw error;
+    }
+    throw new CustomError("Failed to calculate package cost.", 500);
   }
 }
 

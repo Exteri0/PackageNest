@@ -149,17 +149,11 @@ export default (app: Express) => {
     },
     async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
       try {
-        const packageId = req.params.id;
-        const dependency = req.query.dependency === "true"; // optional query param for dependency
-
-        const cost = await packageIdCostGET({ id: packageId }, dependency);
-        res.json(cost);
+        console.log("Received GET /package/:id/cost request");
+        await DefaultController.packageIdCostGET(req, res, next);
       } catch (error) {
-        if (error instanceof CustomError) {
-          res.status(error.status || 500).json({ message: error.message });
-        } else {
-          next(error); // Pass to default error handler
-        }
+        console.error("Error in /package/:id/cost route handler:", error);
+        next(error);
       }
     }
   );

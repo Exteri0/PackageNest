@@ -4,7 +4,7 @@ import { Request, Response, NextFunction } from "express";
 import { AuthenticatedRequest } from "../routes.js";
 import * as utils from "../utils/writer.js";
 import * as Default from "../service/DefaultService.js";
-import { CustomError, OpenApiRequest } from "../utils/types.js";
+import { CustomError, OpenApiRequest, PackageCostDetail } from "../utils/types.js";
 import jwt from "jsonwebtoken";
 import { stringify } from "querystring";
 
@@ -160,27 +160,41 @@ export const PackageDelete = (
     });
 };
 
-export const packageIdCostGET = (
+export const packageIdCostGET = async (
   req: AuthenticatedRequest,
   res: Response,
   next: NextFunction,
-  dependency: boolean
-): void => {
+): Promise<void> => {
   console.log("Entered packageIdCostGET controller function");
   const xAuthorization: Default.AuthenticationToken = {
     token: req.headers['x-authorization']?.toString() ?? "",
   };
-  const id: Default.PackageID = { id: req.params.name };
-  Default.packageIdCostGET(id, dependency)
-    .then((response: any) => {
-      console.log("Response from packageIdCostGET:", response);
-      utils.writeJson(res, response);
-      console.log("Response sent from packageIdCostGET controller");
-    })
-    .catch((response: any) => {
-      console.error("Error in packageIdCostGET:", response);
-      utils.writeJson(res, response);
-    });
+  try{
+    const ID: Default.PackageID = { id: req.params.id };
+    const dependency: boolean = req.query.dependency?.toString() === "true";
+    console.log("Received ID:", ID.id);
+    console.log("Received dependency flag:", dependency);
+    const costDetails = await Default.packageIdCostGET(ID, dependency);
+    if(!dependency){
+      console.log("Formatting the no dependency output with root id = ", ID.id);
+      let idroot: string = ID.id;
+      let responseRoot: PackageCostDetail = costDetails[idroot];
+      let response: {[id: string]: {totalCost: number}} = {[idroot]: {totalCost: responseRoot.standaloneCost}};
+      console.log("Final response with no dependency: ", JSON.stringify(response));
+      res.status(200).json(response);
+    }
+    else{
+      res.status(200).json(costDetails);
+    }
+  }
+  catch(error: any){
+    console.error("Error in packageIdCostGET controller:", error);
+    if (error instanceof CustomError) {
+      res.status(error.status).json({ error: error.message });
+    } else {
+      res.status(500).json({ error: error.message || "An error occurred" });
+    }
+  }
 };
 
 export const PackageRate = async (
