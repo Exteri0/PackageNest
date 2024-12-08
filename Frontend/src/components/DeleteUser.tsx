@@ -44,7 +44,7 @@ export default function DeleteUser() {
           'X-Authorization': localStorage.getItem('token'),
         },
       })
-      .then((res) => {
+      .then(() => {
         setError([2, 'User deleted successfully']);
         localStorage.removeItem('token');
         window.location.reload();
@@ -84,9 +84,13 @@ export default function DeleteUser() {
           'X-Authorization': localStorage.getItem('token'),
         },
       })
-      .then((res) => {
+      .then(() => {
         setError([2, 'User deleted successfully']);
         setUsers(users.filter((use) => use.id !== user.id));
+        if (user.name === name) {
+          localStorage.removeItem('token');
+          window.location.reload();
+        }
       })
       .catch((err) => {
         console.error(err);
