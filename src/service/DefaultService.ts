@@ -1069,6 +1069,12 @@ export async function packageUpdate(
     throw new CustomError(errorMessage, 404);
   }
 
+  else if(typeof existingPackageResult !== 'boolean' && existingPackageResult.Name == metadataName && existingPackageResult.Version == Version) {
+    const errorMessage = `Package with ID ${idParam} already exists with the same name and version.`;
+    console.error(`[ERROR] ${errorMessage}`);
+    throw new CustomError(errorMessage, 409);
+  }
+
   // Ensure either 'Content' or 'URL' is provided, but not both or neither
   if ((!URL && !Content) || (URL && Content)) {
     const errorMessage = "Invalid input: Provide either 'Content' or 'URL', but not both.";

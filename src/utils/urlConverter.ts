@@ -57,6 +57,6 @@ export async function convertNpmUrlToGitHubUrl(npmUrl: string): Promise<string> 
     if (error instanceof CustomError) {
       throw error;
     }
-    throw new CustomError(`Failed to convert npm URL to GitHub URL: ${error.message}`, 500);
+    throw new CustomError(`Failed to convert npm URL to GitHub URL: ${error.message}`, error.status || 500);
   }
 }
