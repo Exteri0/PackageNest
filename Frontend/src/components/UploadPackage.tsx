@@ -185,11 +185,7 @@ const UploadPackage: React.FC = () => {
           </button>
         </>
       )}
-      {isLoggedIn === 2 && (
-        <div style={{ color: '#af0000', textAlign: 'center' }}>
-          You must be logged in to access this content.
-        </div>
-      )}
+      {isLoggedIn === 2 && <h1>Please Login First</h1>}
       {error[0] === 0 && <span style={{ color: 'black' }}>{error[1]}</span>}
       {error[0] === 1 && <span style={{ color: 'red' }}>{error[1]}</span>}
       {error[0] === 2 && <span style={{ color: 'green' }}>{error[1]}</span>}

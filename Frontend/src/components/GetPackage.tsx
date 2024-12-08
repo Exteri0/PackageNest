@@ -308,9 +308,7 @@ export default function GetPackage() {
         </>
       )}
       {isLoggedIn === 2 /* Show message when not logged in */ && (
-        <h1 style={{ color: '#e50000', textAlign: 'center' }}>
-          You must be logged in to access this content.
-        </h1>
+        <h1>Please Login First</h1>
       )}
     </div>
   );
