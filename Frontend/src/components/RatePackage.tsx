@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import config from '../config';
-import { message } from 'antd';
 import axios from 'axios';
 import { validateStoredToken } from '../utils';
 
@@ -27,6 +26,7 @@ export default function RatePackage() {
   const [id, setId] = useState('');
   const [rate, setRate] = useState({} as RatePackage);
   const [isLoggedIn, setIsLoggedIn] = useState(0);
+  const [error, setError] = useState([0, '']);
 
   useEffect(() => {
     (async () => {
@@ -45,8 +45,9 @@ export default function RatePackage() {
   const handleSubmit = async () => {
     setRate({} as RatePackage);
     if (id == '') {
-      message.error('Please enter a package ID');
+      setError([1, 'Please enter a package ID']);
     } else {
+      setError([0, 'Fetching package rating...']);
       await axios
         .get(`${config.apiBaseUrl}/package/${id}/rate`, {
           headers: {
@@ -55,9 +56,11 @@ export default function RatePackage() {
         })
         .then((response) => {
           setRate(response.data);
+          setError([0, '']);
         })
         .catch((error) => {
-          message.error(error.message);
+          console.error(error);
+          setError([1, 'Failed to fetch package rating']);
         });
     }
   };
@@ -78,6 +81,7 @@ export default function RatePackage() {
           <button className="action-buttons" onClick={handleSubmit}>
             Get Package Rating
           </button>
+          {error[0] !== 0 && <h2 style={{ color: 'red' }}>{error[1]}</h2>}
           {Object.entries(rate).map(([key, value]) => (
             <div key={key} style={{ margin: '10px 20px', color: 'black' }}>
               <span style={{ fontWeight: 'bold' }}>{key}: </span>

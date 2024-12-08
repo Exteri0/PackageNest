@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { validateStoredToken } from '../utils';
-import { Switch, message } from 'antd';
+import { Switch } from 'antd';
 import axios from 'axios';
 import config from '../config';
 
@@ -10,6 +10,7 @@ export default function Regsiter() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [isBackend, setIsBackend] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(0);
+  const [error, setError] = useState([0, '']);
 
   useEffect(() => {
     (async () => {
@@ -25,8 +26,26 @@ export default function Regsiter() {
     })();
   }, []);
 
-  const handleSubmit = async () => {
-    console.log('Submitting user:', name);
+  const checkInput = () => {
+    return new Promise((resolve, reject) => {
+      if (name === '' || password === '') {
+        setError([1, 'Please fill out all fields']);
+        reject(new Error('Please fill out all fields'));
+      }
+      if (typeof name !== 'string' || typeof password !== 'string') {
+        setError([1, 'Name and password must be strings']);
+        reject(new Error('Name and password must be strings'));
+      }
+      if (/^\d+$/.test(name) || /^\d+$/.test(password)) {
+        setError([1, 'Name and password cannot be just numbers']);
+        reject(new Error('Name and password cannot be just numbers'));
+      }
+
+      resolve(true);
+    });
+  };
+
+  const registerUser = () => {
     axios
       .post(`${config.apiBaseUrl}/register`, {
         User: {
@@ -40,11 +59,22 @@ export default function Regsiter() {
       })
       .then((response) => {
         console.log(response.data);
-        message.success('Successfully registered user');
+        setError([2, 'Successfully registered user']);
       })
       .catch((error) => {
         console.error(error);
-        message.error('Failed to register user');
+        setError([1, 'Failed to register user']);
+      });
+  };
+
+  const handleSubmit = async () => {
+    await checkInput()
+      .then(() => {
+        setError([0, 'Submitting user...']);
+        registerUser();
+      })
+      .catch((err) => {
+        console.error(err);
       });
   };
 
@@ -71,13 +101,24 @@ export default function Regsiter() {
           <div>
             <span style={{ color: '#000', marginRight: '30px' }}>Admin</span>
 
-            <Switch checked={isAdmin} onChange={(e) => setIsAdmin(e)} />
+            <Switch
+              title="set-admin"
+              checked={isAdmin}
+              onChange={(e) => setIsAdmin(e)}
+            />
           </div>
           <div>
             <span style={{ color: '#000', marginRight: '17px' }}>Backend</span>
-            <Switch checked={isBackend} onChange={(e) => setIsBackend(e)} />
+            <Switch
+              title="set-backend"
+              checked={isBackend}
+              onChange={(e) => setIsBackend(e)}
+            />
           </div>
           <button onClick={handleSubmit}>Submit</button>
+          {error[0] === 0 && <span style={{ color: 'black' }}>{error[1]}</span>}
+          {error[0] === 1 && <span style={{ color: 'red' }}>{error[1]}</span>}
+          {error[0] === 2 && <span style={{ color: 'green' }}>{error[1]}</span>}
         </div>
       )}
       {isLoggedIn === 2 && <h2>User is not logged in</h2>}

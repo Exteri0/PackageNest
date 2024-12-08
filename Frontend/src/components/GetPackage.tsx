@@ -162,7 +162,12 @@ export default function GetPackage() {
             })
             .then((response) => {
               console.log(response.data);
-              setPackageData(response.data);
+              const packages = response.data.map((pkg: PackageResponse) => ({
+                name: pkg.Name,
+                version: pkg.Version,
+                package_id: pkg.ID,
+              }));
+              setPackageData(packages);
             })
             .catch((error) => {
               console.error(error);
@@ -212,7 +217,11 @@ export default function GetPackage() {
       {isLoggedIn === 0 && <h1>Loading...</h1>} {/* Show loading indicator */}
       {isLoggedIn === 1 /* Show content only when logged in */ && (
         <>
-          <select className="dropdown" onChange={(e) => handleOptionChange(e)}>
+          <select
+            title="select-update-type"
+            className="dropdown"
+            onChange={(e) => handleOptionChange(e)}
+          >
             <option value="id">Get by ID</option>
             <option value="name">Get by Name</option>
             <option value="regex">Get by REGEX</option>
@@ -286,7 +295,7 @@ export default function GetPackage() {
         </>
       )}
       {isLoggedIn === 2 /* Show message when not logged in */ && (
-        <h1 style={{ color: 'red', textAlign: 'center' }}>
+        <h1 style={{ color: '#e50000', textAlign: 'center' }}>
           You must be logged in to access this content.
         </h1>
       )}
