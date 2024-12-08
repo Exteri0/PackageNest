@@ -15,6 +15,7 @@ export default function DeleteUser() {
   const [isLoggedIn, setIsLoggedIn] = useState(0);
   const [error, setError] = useState([0, '']);
   const [users, setUsers] = useState<User[]>([]);
+  const [name, setName] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -22,6 +23,7 @@ export default function DeleteUser() {
       if (user) {
         console.log('User is logged in');
         console.log(user);
+        setName(user.name);
         if (user.isAdmin) setIsLoggedIn(1);
         else setIsLoggedIn(2);
       } else {
@@ -32,6 +34,10 @@ export default function DeleteUser() {
   }, []);
 
   const handleDelete = async () => {
+    if (name === 'ece30861defaultadminuser') {
+      setError([1, 'Cannot delete default admin user']);
+      return;
+    }
     await axios
       .delete(`${config.apiBaseUrl}/deleteSelf`, {
         headers: {
@@ -66,17 +72,21 @@ export default function DeleteUser() {
       });
   };
 
-  const handleDeleteUser = async (e: MouseEvent, id: string) => {
+  const handleDeleteUser = async (e: MouseEvent, user: User) => {
     e.preventDefault();
+    if (user.name == 'ece30861defaultadminuser') {
+      setError([1, 'Cannot delete default admin user']);
+      return;
+    }
     await axios
-      .delete(`${config.apiBaseUrl}/user/${id}`, {
+      .delete(`${config.apiBaseUrl}/user/${user.id}`, {
         headers: {
           'X-Authorization': localStorage.getItem('token'),
         },
       })
       .then((res) => {
         setError([2, 'User deleted successfully']);
-        setUsers(users.filter((user) => user.id !== id));
+        setUsers(users.filter((use) => use.id !== user.id));
       })
       .catch((err) => {
         console.error(err);
@@ -103,7 +113,7 @@ export default function DeleteUser() {
               <p>{user.id}</p>
               <p>{user.isadmin ? 'Admin' : 'Not Admin'}</p>
               <p>{user.isbackend ? 'Backend' : 'Not Backend'}</p>
-              <button onClick={(e) => handleDeleteUser(e, user.id)}>
+              <button onClick={(e) => handleDeleteUser(e, user)}>
                 Delete User
               </button>
             </div>
@@ -111,6 +121,8 @@ export default function DeleteUser() {
         </div>
       )}
       {isLoggedIn === 3 && <h1>Please Login First</h1>}
+      {error[0] === 1 && <span style={{ color: 'red' }}>{error[1]}</span>}
+      {error[0] === 2 && <span style={{ color: 'green' }}>{error[1]}</span>}
     </div>
   );
 }

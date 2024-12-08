@@ -497,7 +497,7 @@ export function deleteUser(
   Default.deleteUser(Number(req.params.id))
     .then((response: any) => {
       console.log("Response from deleteUser:", response);
-      utils.writeJson(res, response);
+      res.status(200).json(response);
       console.log("Response sent from deleteUser controller");
     })
     .catch((error: any) => {
