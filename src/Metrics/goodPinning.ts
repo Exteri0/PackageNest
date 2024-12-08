@@ -8,7 +8,7 @@ import { getPackageJson } from '../utils/retrievePackageJson.js';
  */
 interface PinningResult {
   GoodPinningPractice: number;
-  GoodPinningPracticeLatency: number; // in milliseconds
+  GoodPinningPracticeLatency: number; // in seconds
 }
 
 /**
@@ -17,26 +17,25 @@ interface PinningResult {
  * @param name - The GitHub repository name.
  * @returns A Promise that resolves to an object containing the pinning score and latency.
  */
-
 function getLatency(startTime: number): number {
-  return Number(((performance.now() - startTime) / 1000).toFixed(3));
+  return Number(((performance.now() - startTime) / 1000).toFixed(3)); // Latency in seconds
 }
 
 export async function calculatePinningMetric(
   owner: string,
   name: string
 ): Promise<PinningResult> {
-  console.log(`Calculating Good Pinning Practice for repository: ${owner}/${name}`);
+  console.log(`\n=== Calculating Good Pinning Practice for repository: ${owner}/${name} ===`);
   const startTime = performance.now();
 
   try {
     // Fetch package.json using the existing function
-    console.log(`Fetching package.json for ${owner}/${name}`);
+    console.log(`Fetching package.json for ${owner}/${name}...`);
     const packageInfo = await getPackageJson(owner, name);
 
     if (!packageInfo) {
       console.warn(`package.json not found for ${owner}/${name}. Assigning score of 1.0`);
-      return { GoodPinningPractice: 1.0, GoodPinningPracticeLatency: 0 };
+      return { GoodPinningPractice: 1.0, GoodPinningPracticeLatency: getLatency(startTime) };
     }
 
     const { name: packageName, version, dependencies } = packageInfo;
@@ -44,7 +43,7 @@ export async function calculatePinningMetric(
     const dependencyNames = Object.keys(dependencies || {});
     const totalDependencies = dependencyNames.length;
 
-    console.log(`Total dependencies: ${totalDependencies}`);
+    console.log(`Total dependencies found: ${totalDependencies}`);
 
     let score = 1.0; // Default score if no dependencies
 
@@ -55,10 +54,10 @@ export async function calculatePinningMetric(
         console.log(`Checking dependency "${dep}" with version specifier "${versionSpec}"`);
 
         if (isPinnedToMajorMinor(versionSpec)) {
-          console.log(`Dependency "${dep}" is properly pinned.`);
+          console.log(`"${dep}" is properly pinned to major.minor.`);
           pinnedCount++;
         } else {
-          console.log(`Dependency "${dep}" is NOT properly pinned.`);
+          console.log(`"${dep}" is NOT properly pinned to major.minor.`);
         }
       }
 
@@ -68,35 +67,81 @@ export async function calculatePinningMetric(
     } else {
       console.log('Package has zero dependencies. Good Pinning Practice score is 1.0');
     }
-    let latency:number = getLatency(startTime);
-    console.log(`Good Pinning Practice calculation completed in ${latency.toFixed(2)} ms.`);
+
+    const latency: number = getLatency(startTime);
+    console.log(`Calculation completed in ${latency} seconds.\n`);
 
     return { GoodPinningPractice: score, GoodPinningPracticeLatency: latency };
   } catch (error) {
     console.error(`Error calculating Good Pinning Practice for ${owner}/${name}:`, error);
-    return { GoodPinningPractice: -1, GoodPinningPracticeLatency: 0 };
+    const latency = getLatency(startTime);
+    return { GoodPinningPractice: -1, GoodPinningPracticeLatency: latency };
   }
 }
 
 /**
  * Determines if a version specifier is pinned to at least a specific major and minor version.
+ * Handles exact versions, tilde (~), caret (^), and pre-release versions.
  * @param versionSpec - The version specifier string from package.json.
  * @returns True if pinned to major.minor, false otherwise.
  */
 function isPinnedToMajorMinor(versionSpec: string): boolean {
-  const cleanedVersion = versionSpec.trim();
+  const trimmed = versionSpec.trim();
 
-  // Check for exact version (e.g., "2.3.4")
-  if (semver.valid(cleanedVersion)) {
+  // Exact version (e.g., "2.3.4" or "2.3.4-beta.1")
+  if (semver.valid(trimmed)) {
     return true;
   }
 
-  // Check for major.minor (e.g., "2.3"), major.minor.x (e.g., "2.3.x"), or major.minor.* (e.g., "2.3.*")
-  const majorMinorRegex = /^(\d+)\.(\d+)(\.(x|\*))?$/;
-  if (majorMinorRegex.test(cleanedVersion)) {
-    return true;
+  // Create a semver Range object with pre-releases included
+  let range: semver.Range;
+  try {
+    range = new semver.Range(trimmed, { includePrerelease: true });
+  } catch (err) {
+    console.warn(`Invalid semver range "${trimmed}". Considering as not pinned.`);
+    return false;
   }
 
-  // Not pinned to a specific major.minor version
-  return false;
+  // Extract all comparators from the range
+  const comparators: semver.Comparator[] = range.set.flatMap(compSet => compSet);
+
+  // Initialize variables to track the minimum and maximum bounds
+  let minVersion: semver.SemVer | null = null;
+  let maxVersion: semver.SemVer | null = null;
+
+  // Iterate through comparators to determine min and max versions
+  for (const comp of comparators) {
+    const operator = comp.operator;
+    const semverVersion = comp.semver;
+
+    if (operator === '>=' || operator === '>') {
+      if (!minVersion || semver.gt(semverVersion, minVersion)) {
+        minVersion = semverVersion;
+      }
+    }
+
+    if (operator === '<=' || operator === '<') {
+      if (!maxVersion || semver.lt(semverVersion, maxVersion)) {
+        maxVersion = semverVersion;
+      }
+    }
+  }
+
+  // If the range is unbounded on either side, it's not pinned
+  if (!minVersion || !maxVersion) {
+    return false;
+  }
+
+  // Check if the range is within the same major.minor version
+  if (minVersion.major !== maxVersion.major || minVersion.minor + 1 !== maxVersion.minor) {
+    return false;
+  }
+
+  // Ensure that the maxVersion is the start of the next minor version
+  if (maxVersion.patch !== 0 || maxVersion.prerelease.length > 0) {
+    return false;
+  }
+
+  // All checks passed; the range is pinned to major.minor
+  return true;
 }

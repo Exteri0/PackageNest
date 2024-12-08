@@ -199,7 +199,7 @@ export const getPackageDetails = async (
 // Check if package exists by packageId
 export const packageExists = async (packageId: string): Promise<PackageData | boolean> => {
   console.log("Checking if package exists");
-  const query = `SELECT name, version, package_id FROM public."packages" WHERE package_id = $1 LIMIT 1`;
+  const query = `SELECT name, version, package_id, content_type FROM public."packages" WHERE package_id = $1 LIMIT 1`;
   try {
     const res = await getDbPool().query(query, [packageId]);
     console.log("Query result:", JSON.stringify(res.rows));
