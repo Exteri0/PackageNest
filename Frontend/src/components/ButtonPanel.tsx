@@ -63,6 +63,11 @@ const ButtonPanel: React.FC<ButtonPanelProps> = ({ setSelectedAction }) => {
       {isLoggedIn === 1 && (
         <button onClick={() => setSelectedAction('logout')}>Logout</button>
       )}
+      {isLoggedIn === 1 && (
+        <button onClick={() => setSelectedAction('deleteUser')}>
+          Delete Users
+        </button>
+      )}
     </div>
   );
 };

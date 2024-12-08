@@ -4,7 +4,11 @@ import { Request, Response, NextFunction } from "express";
 import { AuthenticatedRequest } from "../routes.js";
 import * as utils from "../utils/writer.js";
 import * as Default from "../service/DefaultService.js";
-import { CustomError, OpenApiRequest, PackageCostDetail } from "../utils/types.js";
+import {
+  CustomError,
+  OpenApiRequest,
+  PackageCostDetail,
+} from "../utils/types.js";
 import jwt from "jsonwebtoken";
 import { stringify } from "querystring";
 
@@ -48,8 +52,8 @@ export const PackageByNameGet = (
   console.log("Entered PackageByNameGet controller function");
   const name: Default.PackageName = { name: req.params.name };
   const xAuthorization: Default.AuthenticationToken = {
-    token: req.headers['x-authorization']
-      ? req.headers['x-authorization'].toString()
+    token: req.headers["x-authorization"]
+      ? req.headers["x-authorization"].toString()
       : "",
   };
   Default.packageByNameGet(name, xAuthorization)
@@ -73,17 +77,23 @@ export const PackageByRegExGet = async (
   console.log("Entered PackageByRegExGet controller function");
 
   const xAuthorization: Default.AuthenticationToken = {
-    token: req.headers['x-authorization']
-      ? req.headers['x-authorization'].toString()
+    token: req.headers["x-authorization"]
+      ? req.headers["x-authorization"].toString()
       : "",
   };
-  console.log("Received xAuthorization:", JSON.stringify(xAuthorization, null, 2));
+  console.log(
+    "Received xAuthorization:",
+    JSON.stringify(xAuthorization, null, 2)
+  );
 
   console.log(`PackageByRegExGet request body: ${JSON.stringify(body || {})}`);
 
   try {
     const response = await Default.packageByRegExGet(body, xAuthorization);
-    console.log("Response from packageByRegExGet:", JSON.stringify(response, null, 2));
+    console.log(
+      "Response from packageByRegExGet:",
+      JSON.stringify(response, null, 2)
+    );
 
     // Since service throws 404 if no packages found, response should contain data
     utils.writeJson(res, response);
@@ -95,12 +105,13 @@ export const PackageByRegExGet = async (
       res.status(error.status).json({ error: error.message });
       console.log(`CustomError handled with status ${error.status}`);
     } else {
-      res.status(500).json({ error: error.message || "An internal server error occurred." });
+      res
+        .status(500)
+        .json({ error: error.message || "An internal server error occurred." });
       console.log("Internal server error handled with status 500");
     }
   }
 };
-
 
 export const PackageCreate = async (
   req: AuthenticatedRequest,
@@ -111,7 +122,7 @@ export const PackageCreate = async (
   console.log("Entered PackageCreate controller function");
   try {
     const xAuthorization: Default.AuthenticationToken = {
-      token: req.headers['x-authorization']?.toString() ?? "",
+      token: req.headers["x-authorization"]?.toString() ?? "",
     };
     console.log("xAuthorization token:", xAuthorization.token);
 
@@ -143,8 +154,8 @@ export const PackageDelete = (
 ): void => {
   console.log("Entered PackageDelete controller function");
   const xAuthorization: Default.AuthenticationToken = {
-    token: req.headers['x-authorization']
-      ? req.headers['x-authorization'].toString()
+    token: req.headers["x-authorization"]
+      ? req.headers["x-authorization"].toString()
       : "",
   };
   const id: Default.PackageID = { id: req.params.name };
@@ -163,31 +174,34 @@ export const PackageDelete = (
 export const packageIdCostGET = async (
   req: AuthenticatedRequest,
   res: Response,
-  next: NextFunction,
+  next: NextFunction
 ): Promise<void> => {
   console.log("Entered packageIdCostGET controller function");
   const xAuthorization: Default.AuthenticationToken = {
-    token: req.headers['x-authorization']?.toString() ?? "",
+    token: req.headers["x-authorization"]?.toString() ?? "",
   };
-  try{
+  try {
     const ID: Default.PackageID = { id: req.params.id };
     const dependency: boolean = req.query.dependency?.toString() === "true";
     console.log("Received ID:", ID.id);
     console.log("Received dependency flag:", dependency);
     const costDetails = await Default.packageIdCostGET(ID, dependency);
-    if(!dependency){
+    if (!dependency) {
       console.log("Formatting the no dependency output with root id = ", ID.id);
       let idroot: string = ID.id;
       let responseRoot: PackageCostDetail = costDetails[idroot];
-      let response: {[id: string]: {totalCost: number}} = {[idroot]: {totalCost: responseRoot.standaloneCost}};
-      console.log("Final response with no dependency: ", JSON.stringify(response));
+      let response: { [id: string]: { totalCost: number } } = {
+        [idroot]: { totalCost: responseRoot.standaloneCost },
+      };
+      console.log(
+        "Final response with no dependency: ",
+        JSON.stringify(response)
+      );
       res.status(200).json(response);
-    }
-    else{
+    } else {
       res.status(200).json(costDetails);
     }
-  }
-  catch(error: any){
+  } catch (error: any) {
     console.error("Error in packageIdCostGET controller:", error);
     if (error instanceof CustomError) {
       res.status(error.status).json({ error: error.message });
@@ -204,14 +218,14 @@ export const PackageRate = async (
 ): Promise<void> => {
   console.log("Entered PackageRate controller function");
   const xAuthorization: Default.AuthenticationToken = {
-    token: req.headers['x-authorization']
-      ? req.headers['x-authorization'].toString()
+    token: req.headers["x-authorization"]
+      ? req.headers["x-authorization"].toString()
       : "",
   };
   const id: Default.PackageID = { id: req.params.id };
   try {
     const xAuthorization: Default.AuthenticationToken = {
-      token: req.headers['x-authorization']?.toString() ?? "",
+      token: req.headers["x-authorization"]?.toString() ?? "",
     };
     console.log("xAuthorization token:", xAuthorization.token);
 
@@ -238,7 +252,7 @@ export const PackageRetrieve = async (
 
   // Extract and log the Authorization token
   const xAuthorization: Default.AuthenticationToken = {
-    token: req.headers['x-authorization']?.toString() ?? "",
+    token: req.headers["x-authorization"]?.toString() ?? "",
   };
   console.log(`xAuthorization token: ${xAuthorization.token}`);
 
@@ -249,7 +263,10 @@ export const PackageRetrieve = async (
   try {
     // Call the service layer to retrieve the package
     const response = await Default.packageRetrieve(xAuthorization, id);
-    console.log("Response from packageRetrieve:", JSON.stringify(response, null, 2));
+    console.log(
+      "Response from packageRetrieve:",
+      JSON.stringify(response, null, 2)
+    );
 
     // Send a successful JSON response with status 200
     res.status(200).json(response);
@@ -262,11 +279,12 @@ export const PackageRetrieve = async (
       res.status(error.status).json({ error: error.message });
     } else {
       // Handle all other errors with a 500 status code
-      res.status(500).json({ error: error.message || "An internal server error occurred." });
+      res
+        .status(500)
+        .json({ error: error.message || "An internal server error occurred." });
     }
   }
 };
-
 
 export const PackageUpdate = async (
   req: AuthenticatedRequest,
@@ -276,15 +294,13 @@ export const PackageUpdate = async (
   console.log("Entered PackageUpdate controller function");
   try {
     const xAuthorization: Default.AuthenticationToken = {
-      token: req.headers['x-authorization']?.toString() || "",
+      token: req.headers["x-authorization"]?.toString() || "",
     };
     const id = req.params.id; // Extracted ID from the URL path
     const body = req.body;
 
     console.log("Received ID:", id);
     console.log("Request Body:", body);
-
-
 
     const response = await Default.packageUpdate(
       id,
@@ -295,7 +311,7 @@ export const PackageUpdate = async (
       body.data?.Content,
       body.data?.URL,
       body.data?.debloat,
-      body.data?.JSProgram,
+      body.data?.JSProgram
     );
     console.log("Response from packageUpdate:", response);
 
@@ -315,16 +331,19 @@ export const PackagesList = async (
   res: Response,
   next: NextFunction,
   offset?: string
-  
 ): Promise<void> => {
   console.log("Entered PackagesList controller function");
   try {
     const xAuthorization: Default.AuthenticationToken = {
-      token: req.headers['x-authorization']?.toString() ?? "",
+      token: req.headers["x-authorization"]?.toString() ?? "",
     };
     console.log("xAuthorization token received:", xAuthorization.token);
 
-    const response = await Default.packagesList(req.body, offset, xAuthorization);
+    const response = await Default.packagesList(
+      req.body,
+      offset,
+      xAuthorization
+    );
     console.log("Response from packagesList:", response);
 
     // Set the offset header if nextOffset exists
@@ -351,7 +370,7 @@ export const RegistryReset = (
   next: NextFunction
 ): void => {
   const xAuthorization: Default.AuthenticationToken = {
-    token: req.headers['x-authorization']?.toString() ?? "",
+    token: req.headers["x-authorization"]?.toString() ?? "",
   };
   Default.registryReset(xAuthorization)
     .then((response: any) => {
@@ -372,7 +391,7 @@ export const tracksGET = (
 ): void => {
   console.log("Entered tracksGET controller function");
   const xAuthorization: Default.AuthenticationToken = {
-    token: req.headers['x-authorization']?.toString() ?? "",
+    token: req.headers["x-authorization"]?.toString() ?? "",
   };
   try {
     const tracks = Default.tracksGET(xAuthorization);
@@ -392,7 +411,7 @@ export const testGET = (
 ): void => {
   console.log("Entered testGET controller function");
   const xAuthorization: Default.AuthenticationToken = {
-    token: req.headers['x-authorization']?.toString() ?? "",
+    token: req.headers["x-authorization"]?.toString() ?? "",
   };
   Default.testGET(xAuthorization)
     .then((response: any) => {
@@ -412,14 +431,16 @@ export function registerUser(
   next: NextFunction
 ) {
   console.log("Entered registerUser controller function");
-  Default.registerUser(req.body).then((response: any) => {
-    console.log("Response from registerUser:", response);
-    utils.writeJson(res, response);
-    console.log("Response sent from registerUser controller");
-  }).catch((error:any)=>{
-    console.error("Error in registerUser:", error);
-    utils.writeJson(res, error);
-  });
+  Default.registerUser(req.body)
+    .then((response: any) => {
+      console.log("Response from registerUser:", response);
+      utils.writeJson(res, response);
+      console.log("Response sent from registerUser controller");
+    })
+    .catch((error: any) => {
+      console.error("Error in registerUser:", error);
+      utils.writeJson(res, error);
+    });
 }
 
 export function getUsers(
@@ -428,17 +449,61 @@ export function getUsers(
   next: NextFunction
 ) {
   const xAuthorization: Default.AuthenticationToken = {
-    token: req.headers['x-authorization']?.toString() ?? "",
+    token: req.headers["x-authorization"]?.toString() ?? "",
   };
   console.log("Entered getUsers controller function");
-  Default.getUsers().then((response: any) => {
-    console.log("Response from getUsers:", response);
-    utils.writeJson(res, response);
-    console.log("Response sent from getUsers controller");
-  }).catch((error:any)=>{
-    console.error("Error in getUsers:", error);
-    utils.writeJson(res, error);
-  });
+  Default.getUsers()
+    .then((response: any) => {
+      console.log("Response from getUsers:", response);
+      utils.writeJson(res, response);
+      console.log("Response sent from getUsers controller");
+    })
+    .catch((error: any) => {
+      console.error("Error in getUsers:", error);
+      utils.writeJson(res, error);
+    });
+}
+
+export function deleteSelf(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+) {
+  console.log("Entered deleteSelf controller function");
+  const xAuthorization: Default.AuthenticationToken = {
+    token: req.headers["x-authorization"]?.toString() ?? "",
+  };
+  Default.deleteUser(Number(req.user.id))
+    .then((response: any) => {
+      console.log("Response from deleteSelf:", response);
+      utils.writeJson(res, response);
+      console.log("Response sent from deleteSelf controller");
+    })
+    .catch((error: any) => {
+      console.error("Error in deleteSelf:", error);
+      utils.writeJson(res, error);
+    });
+}
+
+export function deleteUser(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+) {
+  console.log("Entered deleteUser controller function");
+  const xAuthorization: Default.AuthenticationToken = {
+    token: req.headers["x-authorization"]?.toString() ?? "",
+  };
+  Default.deleteUser(Number(req.params.id))
+    .then((response: any) => {
+      console.log("Response from deleteUser:", response);
+      utils.writeJson(res, response);
+      console.log("Response sent from deleteUser controller");
+    })
+    .catch((error: any) => {
+      console.error("Error in deleteUser:", error);
+      utils.writeJson(res, error);
+    });
 }
 
 export const populate = (
@@ -448,7 +513,7 @@ export const populate = (
 ): void => {
   console.log("Entered populate controller function");
   const xAuthorization: Default.AuthenticationToken = {
-    token: req.headers['x-authorization']?.toString() ?? "",
+    token: req.headers["x-authorization"]?.toString() ?? "",
   };
   Default.populatePackages(xAuthorization)
     .then((response: any) => {

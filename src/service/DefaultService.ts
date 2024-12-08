@@ -5,7 +5,7 @@ import * as https from "https";
 import awsSdk from "aws-sdk";
 import axios from "axios";
 import { executeSqlFile } from "../queries/resetDB.js";
-import safeRegex from 'safe-regex';
+import safeRegex from "safe-regex";
 import "dotenv/config";
 import { getDbPool } from "./databaseConnection.js";
 import * as packageQueries from "../queries/packageQueries.js";
@@ -34,6 +34,7 @@ import {
   getTokenByUserId,
   getUserByUsername,
   updateToken,
+  deleteUserById,
 } from "../queries/userQueries.js";
 import {
   getPackageInfoZipFile,
@@ -65,11 +66,11 @@ export interface PackagesListResponse {
   nextOffset: number | null;
 }
 
-export interface PackageData{
-  ID: string,
-  contentType: boolean,
-  Name: string,
-  Version: string
+export interface PackageData {
+  ID: string;
+  contentType: boolean;
+  Name: string;
+  Version: string;
 }
 
 export interface AuthenticationRequest {
@@ -191,6 +192,18 @@ export function getUsers(): Promise<any> {
     } catch (error) {
       console.error("Error occurred in getAllUsers:", error);
       reject(new CustomError(`Failed to retrieve users`, 500));
+    }
+  });
+}
+
+export function deleteUser(id: number): Promise<any> {
+  return new Promise(async function (resolve, reject) {
+    try {
+      const result = await deleteUserById(id);
+      resolve(result);
+    } catch (error) {
+      console.error("Error occurred in deleteSelf:", error);
+      reject(new CustomError(`Failed to delete user`, 500));
     }
   });
 }
@@ -322,7 +335,10 @@ export async function packageByRegExGet(
 ): Promise<Array<{ Name: string; Version: string; ID: string }>> {
   console.log("Entered packageByRegExGet function");
   console.log("Received body:", JSON.stringify(body, null, 2));
-  console.log("Received xAuthorization:", JSON.stringify(xAuthorization, null, 2));
+  console.log(
+    "Received xAuthorization:",
+    JSON.stringify(xAuthorization, null, 2)
+  );
 
   // Validate request body
   if (!body || !body.RegEx) {
@@ -341,18 +357,23 @@ export async function packageByRegExGet(
     throw new CustomError("Regex matches the empty string.", 404);
   }
 
-
   // Check if the regex is safe using safe-regex library
   if (!safeRegex(regexPattern)) {
     console.error("Provided regex is potentially unsafe or too complex.");
-    throw new CustomError("Provided regular expression is unsafe or too complex.", 400);
+    throw new CustomError(
+      "Provided regular expression is unsafe or too complex.",
+      400
+    );
   }
 
   // Enforce a maximum length for the regex pattern
   const maxRegexLength = 100; // Adjust as needed
   if (regexPattern.length > maxRegexLength) {
     console.error(`RegEx pattern too long: ${regexPattern.length} characters.`);
-    throw new CustomError(`RegEx pattern too long. Maximum allowed length is ${maxRegexLength} characters.`, 400);
+    throw new CustomError(
+      `RegEx pattern too long. Maximum allowed length is ${maxRegexLength} characters.`,
+      400
+    );
   }
 
   try {
@@ -388,10 +409,13 @@ export async function packageByRegExGet(
     const response = result.rows.map((row: any) => ({
       Name: row.name,
       Version: row.version,
-      ID: row.package_id, 
+      ID: row.package_id,
     }));
 
-    console.log("Returning matched packages:", JSON.stringify(response, null, 2));
+    console.log(
+      "Returning matched packages:",
+      JSON.stringify(response, null, 2)
+    );
     return response;
   } catch (error: any) {
     console.error("Error occurred in packageByRegExGet:", error);
@@ -519,9 +543,11 @@ export async function packageCreate(
       } catch (error: any) {
         if (error instanceof CustomError) {
           throw error;
-        }
-        else {
-          throw new CustomError(`Failed to retrieve package info from URL: ${error.message}`, 500);
+        } else {
+          throw new CustomError(
+            `Failed to retrieve package info from URL: ${error.message}`,
+            500
+          );
         }
       }
     }
@@ -865,10 +891,10 @@ export async function packageIdCostGET(
     console.log(`ID inputted: ${id.id}`);
     console.log("Checking if package exists");
     const packageExists = await packageQueries.packageExists(id.id);
-    if(!packageExists) {
+    if (!packageExists) {
       console.error(`Package not found with ID: ${id.id}`);
       throw new CustomError("Package not found.", 404);
-    } 
+    }
     const { packageName, version } = await packageQueries.getPackageDetails(
       id.id
     );
@@ -878,8 +904,8 @@ export async function packageIdCostGET(
       dependency ?? false
     );
     return costDetails;
-  } catch (error:any) {
-    if(error instanceof CustomError) {
+  } catch (error: any) {
+    if (error instanceof CustomError) {
       throw error;
     }
     throw new CustomError("Failed to calculate package cost.", 500);
@@ -949,7 +975,10 @@ export async function packageRetrieve(
   id: string
 ) {
   console.log("Entered packageRetrieve function with ID:", id);
-  console.log("Received xAuthorization:", JSON.stringify(xAuthorization, null, 2));
+  console.log(
+    "Received xAuthorization:",
+    JSON.stringify(xAuthorization, null, 2)
+  );
 
   if (!bucketName) {
     console.error(
@@ -982,9 +1011,15 @@ export async function packageRetrieve(
       metadataValues
     );
     const metadata = metadataResult.rows[0];
-    
+
     // Log the entire metadata object for debugging
-    console.log(`Metadata returned from packageRetrieve: ${JSON.stringify(metadata, null, 2)}`);
+    console.log(
+      `Metadata returned from packageRetrieve: ${JSON.stringify(
+        metadata,
+        null,
+        2
+      )}`
+    );
 
     if (!metadata) {
       console.error("Package not found with ID:", id);
@@ -1040,7 +1075,6 @@ export async function packageRetrieve(
   }
 }
 
-
 export async function packageUpdate(
   idParam: string,
   metadataName?: string,
@@ -1050,7 +1084,7 @@ export async function packageUpdate(
   Content?: string,
   URL?: string,
   debloat?: boolean,
-  JSProgram?: string,
+  JSProgram?: string
 ) {
   let packageName: string | undefined;
   let packageVersion: string | undefined;
@@ -1062,14 +1096,18 @@ export async function packageUpdate(
   // Fetch the existing package details by ID
   console.log(`[INFO] Fetching existing package details for ID: ${idParam}...`);
   const existingPackageResult = await packageQueries.packageExists(idParam);
-  console.log(`[INFO] Existing package fetched: ${JSON.stringify(existingPackageResult)}`);
+  console.log(
+    `[INFO] Existing package fetched: ${JSON.stringify(existingPackageResult)}`
+  );
   if (!existingPackageResult) {
     const errorMessage = `Package with ID ${idParam} not found.`;
     console.error(`[ERROR] ${errorMessage}`);
     throw new CustomError(errorMessage, 404);
-  }
-
-  else if(typeof existingPackageResult !== 'boolean' && existingPackageResult.Name == metadataName && existingPackageResult.Version == Version) {
+  } else if (
+    typeof existingPackageResult !== "boolean" &&
+    existingPackageResult.Name == metadataName &&
+    existingPackageResult.Version == Version
+  ) {
     const errorMessage = `Package with ID ${idParam} already exists with the same name and version.`;
     console.error(`[ERROR] ${errorMessage}`);
     throw new CustomError(errorMessage, 409);
@@ -1077,14 +1115,17 @@ export async function packageUpdate(
 
   // Ensure either 'Content' or 'URL' is provided, but not both or neither
   if ((!URL && !Content) || (URL && Content)) {
-    const errorMessage = "Invalid input: Provide either 'Content' or 'URL', but not both.";
+    const errorMessage =
+      "Invalid input: Provide either 'Content' or 'URL', but not both.";
     console.error(`[ERROR] ${errorMessage}`);
     throw new CustomError(errorMessage, 400);
   }
 
-
-  if(!metadataName || !metadataID || !Version) {
-    throw new CustomError("Invalid input: 'metadataName', 'metadataID', and 'Version' are required.", 400);
+  if (!metadataName || !metadataID || !Version) {
+    throw new CustomError(
+      "Invalid input: 'metadataName', 'metadataID', and 'Version' are required.",
+      400
+    );
   }
 
   const existingPackage = existingPackageResult as PackageData;
@@ -1094,10 +1135,12 @@ export async function packageUpdate(
     console.error(`[ERROR] ${errorMessage}`);
     throw new CustomError(errorMessage, 400);
   }
-  
+
   const existingVersion = existingPackage.Version;
   const existingContentType = existingPackage.contentType;
-  console.log(`[INFO] Existing package details: Name=${existingName}, Version=${existingVersion}, ContentType=${existingContentType}`);
+  console.log(
+    `[INFO] Existing package details: Name=${existingName}, Version=${existingVersion}, ContentType=${existingContentType}`
+  );
 
   // Ensure update type matches the existing package
   if ((Content && !existingContentType) || (URL && existingContentType)) {
@@ -1121,7 +1164,9 @@ export async function packageUpdate(
     let s3Key: string;
 
     if (debloatVal) {
-      console.log(`[INFO] Debloating is enabled. Starting the debloating process...`);
+      console.log(
+        `[INFO] Debloating is enabled. Starting the debloating process...`
+      );
       finalBuffer = await debloatPackage(zipBuffer);
       console.log(`[INFO] Debloating completed successfully.`);
     }
@@ -1165,7 +1210,9 @@ export async function packageUpdate(
 
         packageName = dataName;
         packageVersion = Version || "1.0.0";
-        console.log(`[INFO] Retrieved packageName: ${packageName}, packageVersion: ${packageVersion}`);
+        console.log(
+          `[INFO] Retrieved packageName: ${packageName}, packageVersion: ${packageVersion}`
+        );
       } else {
         throw new CustomError(
           "Unsupported URL format. Provide GitHub or npmjs.com URL.",
@@ -1184,7 +1231,7 @@ export async function packageUpdate(
       let fileBuffer: Buffer = await downloadFile(apiUrl);
       await handleUpload(packageName!, packageVersion!, fileBuffer, debloatVal);
     } catch (error: any) {
-      if(error instanceof CustomError) {
+      if (error instanceof CustomError) {
         throw error;
       }
       console.error(`[ERROR] Error occurred while processing URL: ${error}`);
@@ -1199,7 +1246,9 @@ export async function packageUpdate(
       const responseInfo = await getPackageInfoZipFile(Content);
       packageName = dataName || responseInfo.name; // Use customName if provided
       packageVersion = Version || responseInfo.version || "1.0.0";
-      console.log(`[INFO] Package info retrieved from zip file: Name=${packageName}, Version=${packageVersion}`);
+      console.log(
+        `[INFO] Package info retrieved from zip file: Name=${packageName}, Version=${packageVersion}`
+      );
 
       if (!compareVersions(packageVersion, existingVersion)) {
         throw new CustomError(
@@ -1211,12 +1260,19 @@ export async function packageUpdate(
       contentBuffer = Buffer.from(Content, "base64");
 
       console.log(`[INFO] Uploading package content to S3...`);
-      await handleUpload(packageName!, packageVersion!, contentBuffer, debloatVal);
+      await handleUpload(
+        packageName!,
+        packageVersion!,
+        contentBuffer,
+        debloatVal
+      );
     } catch (error: any) {
-      if(error instanceof CustomError) {
+      if (error instanceof CustomError) {
         throw error;
       }
-      console.error(`[ERROR] Error occurred while processing content: ${error}`);
+      console.error(
+        `[ERROR] Error occurred while processing content: ${error}`
+      );
       throw new CustomError(`Failed to process content: ${error.message}`, 500);
     }
   }
@@ -1243,7 +1299,12 @@ export async function packageUpdate(
     const metrics = await calculateMetrics(URL ?? "");
     const rating = metrics?.NetScore || 0;
 
-    await packageQueries.insertPackageQuery(packageName, packageVersion, updatedPackageId, !URL);
+    await packageQueries.insertPackageQuery(
+      packageName,
+      packageVersion,
+      updatedPackageId,
+      !URL
+    );
     await updatePackageMetadata(updatedPackageId, packageName, packageVersion);
     await updatePackageData(
       updatedPackageId,
@@ -1264,7 +1325,7 @@ export async function packageUpdate(
 
     console.log("Package metadata and data updated successfully.");
   } catch (error: any) {
-    if(error instanceof CustomError) {
+    if (error instanceof CustomError) {
       throw error;
     }
     console.error("Error occurred during database update:", error);
@@ -1290,7 +1351,10 @@ export async function packagesList(
   xAuthorization?: AuthenticationToken
 ): Promise<PackagesListResponse> {
   console.log("Entered packagesList service function");
-  console.log("Authentication token:", xAuthorization?.token || "None provided");
+  console.log(
+    "Authentication token:",
+    xAuthorization?.token || "None provided"
+  );
   console.log("Raw request body:", JSON.stringify(body));
   console.log("Offset:", offset);
 
@@ -1317,14 +1381,18 @@ export async function packagesList(
           // Validate Version format if provided
           if (pkgQuery.Version) {
             const versionFormats = [
-              /^\d+\.\d+\.\d+$/,               // Exact version
+              /^\d+\.\d+\.\d+$/, // Exact version
               /^\d+\.\d+\.\d+-\d+\.\d+\.\d+$/, // Bounded range
-              /^\^\d+\.\d+\.\d+$/,             // Carat notation
-              /^~\d+\.\d+\.\d+$/               // Tilde notation
+              /^\^\d+\.\d+\.\d+$/, // Carat notation
+              /^~\d+\.\d+\.\d+$/, // Tilde notation
             ];
-            const matches = versionFormats.filter((regex) => regex.test(pkgQuery.Version!));
+            const matches = versionFormats.filter((regex) =>
+              regex.test(pkgQuery.Version!)
+            );
             if (matches.length !== 1) {
-              console.error(`Invalid or ambiguous version format: ${pkgQuery.Version}`);
+              console.error(
+                `Invalid or ambiguous version format: ${pkgQuery.Version}`
+              );
               throw new CustomError(
                 "There is missing field(s) in the PackageQuery or it is formed improperly, or is invalid.",
                 400
@@ -1357,7 +1425,9 @@ export async function packagesList(
             } else if (/^\d+\.\d+\.\d+-\d+\.\d+\.\d+$/.test(version)) {
               // Bounded range
               const [startVersion, endVersion] = version.split("-");
-              conditions.push(`version >= $${queryIndex} AND version <= $${queryIndex + 1}`);
+              conditions.push(
+                `version >= $${queryIndex} AND version <= $${queryIndex + 1}`
+              );
               queryValues.push(startVersion, endVersion);
               queryIndex += 2;
             } else if (/^\^\d+\.\d+\.\d+$/.test(version)) {
@@ -1400,9 +1470,17 @@ export async function packagesList(
     console.log("Final WHERE clauses:", whereClauses);
     console.log("Final query parameters:", queryParams);
 
-    const dbPackages = await packageQueries.getPackages(whereClauses, queryParams, limit, offsetValue);
+    const dbPackages = await packageQueries.getPackages(
+      whereClauses,
+      queryParams,
+      limit,
+      offsetValue
+    );
 
-    console.log("Packages returned from DB:", JSON.stringify(dbPackages, null, 2));
+    console.log(
+      "Packages returned from DB:",
+      JSON.stringify(dbPackages, null, 2)
+    );
 
     const nextOffset = dbPackages.length === limit ? offsetValue + limit : null;
 
@@ -1413,7 +1491,10 @@ export async function packagesList(
       ID: pkg.ID,
     })) as PackageMetadata[];
 
-    console.log("Transformed packages to required format:", JSON.stringify(transformedPackages, null, 2));
+    console.log(
+      "Transformed packages to required format:",
+      JSON.stringify(transformedPackages, null, 2)
+    );
     console.log("Next offset:", nextOffset);
 
     return {
@@ -1421,7 +1502,10 @@ export async function packagesList(
       nextOffset,
     };
   } catch (error) {
-    console.error("Error in packagesList:", error instanceof Error ? error.message : error);
+    console.error(
+      "Error in packagesList:",
+      error instanceof Error ? error.message : error
+    );
     if (error instanceof CustomError) {
       throw error;
     } else {

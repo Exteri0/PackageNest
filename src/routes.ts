@@ -255,4 +255,36 @@ export default (app: Express) => {
       }
     }
   );
+  app.delete(
+    "/deleteSelf",
+    (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+      verifyJWT(req, res, next, false, false);
+    },
+    async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+      console.log("Received DELETE /deleteSelf request");
+      try {
+        await DefaultController.deleteSelf(req, res, next);
+        console.log("Delete self response sent successfully");
+      } catch (error) {
+        console.error("Error in /deleteSelf route handler:", error);
+        next(error);
+      }
+    }
+  );
+  app.delete(
+    "/user/:id",
+    (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+      verifyJWT(req, res, next, true, false);
+    },
+    async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+      console.log("Received DELETE /user/:id request");
+      try {
+        await DefaultController.deleteUser(req, res, next);
+        console.log("Delete user response sent successfully");
+      } catch (error) {
+        console.error("Error in /user/:id route handler:", error);
+        next(error);
+      }
+    }
+  );
 };
