@@ -6,6 +6,22 @@ import {
   packageIdCostGET,
   AuthenticationToken,
 } from "./service/DefaultService.js";
+import swaggerJSDoc from 'swagger-jsdoc';
+import swaggerUi from 'swagger-ui-express';
+
+const swaggerOptions = {
+  definition: {
+    openapi: '3.0.0',
+    info: {
+      title: 'PackageNest API',
+      version: '1.0.0',
+      description: 'API documentation for the PackageNest project',
+    },
+  },
+  apis: ['./routes.js'], // Path to the API routes
+}
+
+const swaggerSpec = swaggerJSDoc(swaggerOptions);
 
 console.log("Routes file loaded");
 
@@ -15,6 +31,8 @@ export interface AuthenticatedRequest extends Request {
 }
 
 export default (app: Express) => {
+
+  app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
   // POST /packages
   app.post(
     "/packages",

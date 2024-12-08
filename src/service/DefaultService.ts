@@ -1056,6 +1056,7 @@ export async function packageUpdate(
   let packageVersion: string | undefined;
   let updatedPackageId: string | undefined;
   let contentBuffer: Buffer | undefined;
+  let apiUrl: string | undefined;
   const debloatVal = debloat ?? false;
 
   // Fetch the existing package details by ID
@@ -1154,6 +1155,7 @@ export async function packageUpdate(
         if (!repoMatch) throw new CustomError("Invalid GitHub URL format", 400);
         const owner = repoMatch[1];
         const repo = repoMatch[2];
+        apiUrl = `https://api.github.com/repos/${owner}/${repo}/zipball`;
 
         packageName = dataName;
         packageVersion = Version || "1.0.0";
@@ -1172,8 +1174,8 @@ export async function packageUpdate(
         );
       }
 
-      console.log(`[INFO] Downloading package from URL: ${URL}...`);
-      const fileBuffer = await downloadFile(URL);
+      console.log(`[INFO] Downloading package from URL: ${apiUrl}...`);
+      let fileBuffer: Buffer = await downloadFile(apiUrl);
       await handleUpload(packageName!, packageVersion!, fileBuffer, debloatVal);
     } catch (error: any) {
       if(error instanceof CustomError) {
