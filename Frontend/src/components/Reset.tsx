@@ -53,7 +53,7 @@ export default function Reset() {
         <>
           <h1>Do you want to reset Database?</h1>
           <button onClick={handleSubmit}>Reset</button>
-          <h3>{message[status]}</h3>
+          <span>{message[status]}</span>
         </>
       )}
       {isLoggedIn === 2 && <h1>Please Login First</h1>}

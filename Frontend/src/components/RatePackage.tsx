@@ -81,7 +81,7 @@ export default function RatePackage() {
           <button className="action-buttons" onClick={handleSubmit}>
             Get Package Rating
           </button>
-          {error[0] !== 0 && <h2 style={{ color: 'red' }}>{error[1]}</h2>}
+          {error[0] !== 0 && <span style={{ color: 'red' }}>{error[1]}</span>}
           {Object.entries(rate).map(([key, value]) => (
             <div key={key} style={{ margin: '10px 20px', color: 'black' }}>
               <span style={{ fontWeight: 'bold' }}>{key}: </span>

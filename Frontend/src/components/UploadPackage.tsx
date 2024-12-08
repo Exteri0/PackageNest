@@ -190,9 +190,9 @@ const UploadPackage: React.FC = () => {
           You must be logged in to access this content.
         </div>
       )}
-      {error[0] === 0 && <div style={{ color: 'black' }}>{error[1]}</div>}
-      {error[0] === 1 && <div style={{ color: 'red' }}>{error[1]}</div>}
-      {error[0] === 2 && <div style={{ color: 'green' }}>{error[1]}</div>}
+      {error[0] === 0 && <span style={{ color: 'black' }}>{error[1]}</span>}
+      {error[0] === 1 && <span style={{ color: 'red' }}>{error[1]}</span>}
+      {error[0] === 2 && <span style={{ color: 'green' }}>{error[1]}</span>}
     </>
   );
 };

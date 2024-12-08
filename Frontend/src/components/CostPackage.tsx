@@ -42,7 +42,7 @@ export default function CostPackage() {
         if (costData) {
           setSCost(costData.standaloneCost);
           setTCost(costData.totalCost);
-          setError([0, '']);
+          setError([2, '']);
         } else {
           setError([1, 'Invalid response structure']);
         }
@@ -79,10 +79,10 @@ export default function CostPackage() {
           <div>
             <button onClick={handleSubmit}>Submit</button>
           </div>
-          {error[0] == 0 && <h2>{error[1]}</h2>}
-          {error[0] == 1 && <h2 style={{ color: 'red' }}>{error[1]}</h2>}
-          <h2>Standalone Cost: {sCost}</h2>
-          <h2>Total Cost: {tCost}</h2>
+          {error[0] == 0 && <span>{error[1]}</span>}
+          {error[0] == 1 && <span style={{ color: 'red' }}>{error[1]}</span>}
+          {error[0] == 2 && <h2>Standalone Cost: {sCost}</h2>}
+          {error[0] == 2 && <h2>Total Cost: {tCost}</h2>}
         </div>
       )}
       {isLoggedIn === 2 && <h1>Please Login First</h1>}
