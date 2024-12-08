@@ -44,13 +44,14 @@ export function calculateNetScore(
 ): { NetScore: number } {
   return {
     NetScore:
-      0.3 * licenseScore +
-      0.2 * rampUpScore +
-      0.1 * correctnessScore +
-      0.1 * responsiveMaintainerScore +
+      licenseScore * (
+      0.3 * rampUpScore +
+      0.2 * correctnessScore +
+      0.2 * responsiveMaintainerScore +
       0.1 * goodPinningPracticeScore +
       0.1 * pullRequestScore +
       0.1 * busFactorScore
+      )
   };
 }
 
