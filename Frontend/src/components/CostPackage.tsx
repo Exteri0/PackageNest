@@ -26,7 +26,7 @@ export default function CostPackage() {
 
   const handleSubmit = () => {
     if (id === '') {
-      setError([0, 'Please enter a package id']);
+      setError([1, 'Please enter a package id']);
       return;
     }
     setError([0, 'Fetching cost data...']);

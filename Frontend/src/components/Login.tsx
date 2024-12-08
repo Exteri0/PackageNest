@@ -48,7 +48,7 @@ export default function Login() {
       .put(`${config.apiBaseUrl}/authenticate`, body)
       .then((response) => {
         console.log(response.data);
-        setErr([0, '']);
+        setErr([2, 'Logged in successfully']);
         storeToken(response.data);
         window.location.reload();
       })
@@ -70,14 +70,17 @@ export default function Login() {
       />
       <input
         className="input-box"
-        type="text"
+        type="password"
         placeholder="Password"
         value={password}
         onChange={(e) => setPassword(e.target.value)}
       />
+      <div>
+        {err[0] === 1 && <span style={{ color: 'red' }}>{err[1]}</span>}
+        {err[0] === 0 && <span style={{ color: 'black' }}>{err[1]}</span>}
+        {err[0] === 2 && <span style={{ color: 'green' }}>{err[1]}</span>}
+      </div>
       <button onClick={handleSubmit}>Submit</button>
-      {err[0] === 1 && <span style={{ color: 'red' }}>{err[1]}</span>}
-      {err[0] === 0 && <span style={{ color: 'black' }}>{err[1]}</span>}
     </div>
   );
 }

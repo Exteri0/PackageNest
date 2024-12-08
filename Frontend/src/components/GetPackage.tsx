@@ -93,6 +93,19 @@ export default function GetPackage() {
             setStatus(1);
             resolve(true); // Error exists
           }
+          if (isNaN(Number(offset))) {
+            setError('Offset must be a number');
+            setStatus(1);
+            resolve(true); // Error exists
+          } else if (!/^\d+\.\d+\.\d+$/.test(version)) {
+            setError('Version must be in the form x.x.x');
+            setStatus(1);
+            resolve(true); // Error exists
+          } else if (typeof name !== 'string' || name.trim() === '') {
+            setError('Name must be a valid string');
+            setStatus(1);
+            resolve(true); // Error exists
+          }
           break;
         case 'regex':
           if (regex === '') {
