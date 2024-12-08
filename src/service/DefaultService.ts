@@ -720,14 +720,15 @@ export async function packageCreate(
           );
         }
       } catch (error: any) {
-        console.error(
-          "Error occurred in packageCreate (URL Processing):",
-          error
-        );
-        throw new CustomError(
-          `Failed to process package from URL: ${error.message}`,
-          500
-        );
+        if(error instanceof CustomError){
+          throw error;
+        }
+        else {
+          throw new CustomError(
+            `Failed to process package URL: ${error.message}`,
+            500
+          );
+        }
       }
     }
 
