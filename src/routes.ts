@@ -6,20 +6,20 @@ import {
   packageIdCostGET,
   AuthenticationToken,
 } from "./service/DefaultService.js";
-import swaggerJSDoc from 'swagger-jsdoc';
-import swaggerUi from 'swagger-ui-express';
+import swaggerJSDoc from "swagger-jsdoc";
+import swaggerUi from "swagger-ui-express";
 
 const swaggerOptions = {
   definition: {
-    openapi: '3.0.0',
+    openapi: "3.0.0",
     info: {
-      title: 'PackageNest API',
-      version: '1.0.0',
-      description: 'API documentation for the PackageNest project',
+      title: "PackageNest API",
+      version: "1.0.0",
+      description: "API documentation for the PackageNest project",
     },
   },
-  apis: ['./routes.js'], // Path to the API routes
-}
+  apis: ["./routes.js"], // Path to the API routes
+};
 
 const swaggerSpec = swaggerJSDoc(swaggerOptions);
 
@@ -31,8 +31,7 @@ export interface AuthenticatedRequest extends Request {
 }
 
 export default (app: Express) => {
-
-  app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+  app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
   // POST /packages
   app.post(
     "/packages",
@@ -90,8 +89,6 @@ export default (app: Express) => {
     }
   );
 
-  
-
   // GET /package/{id}
   app.get(
     "/package/:id",
@@ -120,7 +117,7 @@ export default (app: Express) => {
     (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
       verifyJWT(req, res, next, false, false);
     },
-    async (req: AuthenticatedRequest, res: Response, next: NextFunction)=> {
+    async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
       console.log("Received POST /package/:id request");
       console.log("ID is:", req.params.id);
       try {
@@ -194,7 +191,7 @@ export default (app: Express) => {
     (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
       DefaultController.PackageByNameGet(req, res, next);
     }
-  )
+  );
 
   // GET /tracks (tracksGET expects req, res, next)
   app.get("/tracks", (req: Request, res: Response, next: NextFunction) => {

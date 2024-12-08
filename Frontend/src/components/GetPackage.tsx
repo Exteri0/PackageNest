@@ -26,7 +26,8 @@ export default function GetPackage() {
   const [name, setName] = useState('');
   const [regex, setRegex] = useState('');
   const [version, setVersion] = useState('');
-  const [offset, setOffset] = useState('');
+  const [offset, setOffset] = useState(0);
+  const [nextOffset, setNextOffset] = useState(false);
   const [packageData, setPackageData] = useState<Package[]>([]);
   const [error, setError] = useState('');
   const [isLoggedIn, setIsLoggedIn] = useState(0);
@@ -48,6 +49,8 @@ export default function GetPackage() {
   const handleOptionChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setSelectedOption(e.target.value);
     setPackageData([]);
+    setOffset(0);
+    setNextOffset(false);
   };
 
   const handleDownload = (
@@ -84,6 +87,10 @@ export default function GetPackage() {
           if (id === '' || isNaN(Number(id))) {
             setError('Please enter a valid package ID');
             setStatus(1);
+            setPackageData([]);
+            setOffset(0);
+            setNextOffset(false);
+
             resolve(true); // Error exists
           }
           break;
@@ -91,19 +98,16 @@ export default function GetPackage() {
           if (name === '' || version === '') {
             setError('Please enter all the fields');
             setStatus(1);
-            resolve(true); // Error exists
-          }
-          if (isNaN(Number(offset))) {
-            setError('Offset must be a number');
-            setStatus(1);
-            resolve(true); // Error exists
-          } else if (!/^\d+\.\d+\.\d+$/.test(version)) {
-            setError('Version must be in the form x.x.x');
-            setStatus(1);
+            setPackageData([]);
+            setOffset(0);
+            setNextOffset(false);
             resolve(true); // Error exists
           } else if (typeof name !== 'string' || name.trim() === '') {
             setError('Name must be a valid string');
             setStatus(1);
+            setPackageData([]);
+            setOffset(0);
+            setNextOffset(false);
             resolve(true); // Error exists
           }
           break;
@@ -111,6 +115,9 @@ export default function GetPackage() {
           if (regex === '') {
             setError('Please enter a valid regex');
             setStatus(1);
+            setPackageData([]);
+            setOffset(0);
+            setNextOffset(false);
             resolve(true); // Error exists
           }
           break;
@@ -123,9 +130,16 @@ export default function GetPackage() {
     });
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (
+    e: React.MouseEvent<HTMLButtonElement>,
+    mode: number,
+  ) => {
+    e.preventDefault();
     let body = {};
     let params = {};
+    let newOffset = 0;
+    if (mode == 1) newOffset = offset + 10;
+    else if (mode == 2) newOffset = offset - 10;
     const hasError = await checkInput(); // Wait for checkInput to complete
     if (hasError)
       return; // If there's an error, stop further execution    if (flag) return;
@@ -153,6 +167,9 @@ export default function GetPackage() {
             .catch((error) => {
               console.error(error);
               setStatus(1);
+              setPackageData([]);
+              setOffset(0);
+              setNextOffset(false);
             });
           console.log('Get Package By ID');
           break;
@@ -164,8 +181,9 @@ export default function GetPackage() {
             },
           ];
           params = {
-            offset: offset,
+            offset: newOffset,
           };
+          console.log('Offset:', newOffset);
           axios
             .post(`${config.apiBaseUrl}/packages`, body, {
               headers: {
@@ -174,7 +192,12 @@ export default function GetPackage() {
               params,
             })
             .then((response) => {
-              console.log(response.data);
+              console.log(response);
+              console.log(response.headers['offset']);
+              setOffset(newOffset);
+              if (response.headers['offset']) {
+                setNextOffset(true);
+              } else setNextOffset(false);
               const packages = response.data.map((pkg: PackageResponse) => ({
                 name: pkg.Name,
                 version: pkg.Version,
@@ -185,6 +208,9 @@ export default function GetPackage() {
             .catch((error) => {
               console.error(error);
               setStatus(1);
+              setPackageData([]);
+              setOffset(0);
+              setNextOffset(false);
             });
           console.log('Get Package By Name');
           break;
@@ -213,6 +239,9 @@ export default function GetPackage() {
               console.error(error);
               setError('Failed to fetch packages by REGEX'); // Set error message
               setStatus(1); // Set status to error
+              setPackageData([]);
+              setOffset(0);
+              setNextOffset(false);
             });
           console.log('Get Package By REGEX');
           break;
@@ -252,12 +281,6 @@ export default function GetPackage() {
             <>
               <input
                 type="text"
-                placeholder="Enter package Offset..."
-                className="input-box"
-                onChange={(e) => setOffset(e.target.value)}
-              />
-              <input
-                type="text"
                 placeholder="Enter package name..."
                 className="input-box"
                 onChange={(e) => setName(e.target.value)}
@@ -279,9 +302,28 @@ export default function GetPackage() {
               onChange={(e) => setRegex(e.target.value)}
             />
           )}
-          <button className="action-buttons" onClick={handleSubmit}>
+          <button
+            className="action-buttons"
+            onClick={(e) => handleSubmit(e, 0)}
+          >
             Get Package
           </button>
+          {nextOffset && (
+            <button
+              className="action-buttons"
+              onClick={(e) => handleSubmit(e, 1)}
+            >
+              Next Page
+            </button>
+          )}
+          {offset > 0 && (
+            <button
+              className="action-buttons"
+              onClick={(e) => handleSubmit(e, 2)}
+            >
+              Previous Page
+            </button>
+          )}
           <span style={{ color: 'red', fontSize: '20px' }}>{error}</span>
           <h1 style={{ color: 'black', textAlign: 'center' }}>
             Result of the queries

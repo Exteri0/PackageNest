@@ -81,7 +81,7 @@ export default function CostPackage() {
           </div>
           {error[0] == 0 && <span>{error[1]}</span>}
           {error[0] == 1 && <span style={{ color: 'red' }}>{error[1]}</span>}
-          {error[0] == 2 && <h2>Standalone Cost: {sCost}</h2>}
+          {error[0] == 2 && !!sCost && <h2>Standalone Cost: {sCost}</h2>}
           {error[0] == 2 && <h2>Total Cost: {tCost}</h2>}
         </div>
       )}
