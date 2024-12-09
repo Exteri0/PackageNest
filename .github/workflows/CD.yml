@@ -1,65 +1,65 @@
-name: Deploy to EC2
+# name: Deploy to EC2
 
-on:
-  push:
-    branches:
-      - main # Adjust to your desired branch
+# on:
+#   push:
+#     branches:
+#       - main # Adjust to your desired branch
 
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
+# jobs:
+#   deploy:
+#     runs-on: ubuntu-latest
 
-    steps:
-      # Step 1: Checkout the repository
-      - name: Checkout code
-        uses: actions/checkout@v3
+#     steps:
+#       # Step 1: Checkout the repository
+#       - name: Checkout code
+#         uses: actions/checkout@v3
 
-      # Step 2: Set up Node.js environment
-      - name: Set up Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '18' # Use your Node.js version
+#       # Step 2: Set up Node.js environment
+#       - name: Set up Node.js
+#         uses: actions/setup-node@v3
+#         with:
+#           node-version: '18' # Use your Node.js version
 
-      # Step 3: Install dependencies and build the project
-      - name: Install dependencies
-        run: npm install
+#       # Step 3: Install dependencies and build the project
+#       - name: Install dependencies
+#         run: npm install
 
-      - name: Build the project
-        run: npm run build
+#       - name: Build the project
+#         run: npm run build
 
-      # Step 4: Configure SSH and known_hosts
-      - name: Add host to known_hosts
-        run: |
-          mkdir -p ~/.ssh
-          ssh-keyscan -H 3.12.111.89 >> ~/.ssh/known_hosts
-          cat ~/.ssh/known_hosts
+#       # Step 4: Configure SSH and known_hosts
+#       - name: Add host to known_hosts
+#         run: |
+#           mkdir -p ~/.ssh
+#           ssh-keyscan -H 3.12.111.89 >> ~/.ssh/known_hosts
+#           cat ~/.ssh/known_hosts
 
-      # Step 5: Transfer files to EC2
-      - name: Transfer files to EC2
-        env:
-          PRIVATE_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
-        run: |
-          echo "$PRIVATE_KEY" > private_key.pem
-          chmod 600 private_key.pem
+#       # Step 5: Transfer files to EC2
+#       - name: Transfer files to EC2
+#         env:
+#           PRIVATE_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
+#         run: |
+#           echo "$PRIVATE_KEY" > private_key.pem
+#           chmod 600 private_key.pem
           
-          rsync -avz --delete \
-            --include='dist/' --include='dist/**' \
-            --include='.env' \
-            --include='package.json' \
-            --include='package-lock.json' \
-            --include='SampleUrlFile.txt' \
-            --include='cert/' --include='cert/**' \
-            --exclude='*' \
-            -e "ssh -i private_key.pem" . ubuntu@3.12.111.89:~/app3
+#           rsync -avz --delete \
+#             --include='dist/' --include='dist/**' \
+#             --include='.env' \
+#             --include='package.json' \
+#             --include='package-lock.json' \
+#             --include='SampleUrlFile.txt' \
+#             --include='cert/' --include='cert/**' \
+#             --exclude='*' \
+#             -e "ssh -i private_key.pem" . ubuntu@3.12.111.89:~/app3
           
-          rm private_key.pem # Remove private key after use
+#           rm private_key.pem # Remove private key after use
 
-      # Step 6: Restart the app on EC2 (optional)
-      - name: Restart application on EC2
-        env:
-          PRIVATE_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
-        run: |
-          echo "$PRIVATE_KEY" > private_key.pem
-          chmod 600 private_key.pem
-          ssh -i private_key.pem ubuntu@3.12.111.89 'pm2 kill && cd ~/app3 && bash deploy.sh deploy'
-          rm private_key.pem
+#       # Step 6: Restart the app on EC2 (optional)
+#       - name: Restart application on EC2
+#         env:
+#           PRIVATE_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
+#         run: |
+#           echo "$PRIVATE_KEY" > private_key.pem
+#           chmod 600 private_key.pem
+#           ssh -i private_key.pem ubuntu@3.12.111.89 'pm2 kill && cd ~/app3 && bash deploy.sh deploy'
+#           rm private_key.pem
