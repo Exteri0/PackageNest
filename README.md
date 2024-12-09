@@ -2,30 +2,28 @@ Package Registry System Project for ECE 461
 
 Names: Myron Tadros Omar Faramawy Akshata Manjunatha Mohamed Abdelmouty
 
-# Running the server
+# Deploying the server.
 First you have to run:
 ```
-npm i
+Deployment requires obtaining a secret SSH key to the EC2 instance
 ```
-Then you have to install express:
+You need to have Nodejs, Express, and other dependencies installed --> NPM I
 ```
-npm install express
-```
+
 To build, run:
 ```
-npm run build
+npm run build (OR NPX TSC)
 ```
-To run the server, run:
+To run the server in pre-deploy, you need to first send the Compiled js files, package-json, package-lock.json, .env to EC2 using Rsync
 
+Then ssh into EC2 directory where u ran rsync, and install dependencies with npm ci
+
+Then there are 2 modes, pre-deploy (using standard node listen on port 3000) and deploy (using pm2)
+
+# For Postman (Testing Phase) --> make a correct PUT /authenticate request first
+use the string response (authorization token)
+Add it to X-Authorization for all other endpoint requests
 ```
-npm start
-```
-# For Postman (Testing Phase)
-Navigate to the headers tab.
-Add
-```
-Content-Type: application/json
-X-Authorization: bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9
 ```
 
 # Swagger generated server
