@@ -8,6 +8,7 @@ export default defineConfig({
     include: [
       'tests/**/*.test.ts',
       'tests/**/*.test.tsx',
+      'src/selenium-tests/*.test.js',
       'e2e-tests/**/*.test.ts',
       'e2e-tests/**/*.test.tsx',
     ],
