@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import config from '../config';
 import axios from 'axios';
-import { message } from 'antd';
 import { validateStoredToken } from '../utils';
 
 export default function CostPackage() {
@@ -9,6 +8,7 @@ export default function CostPackage() {
   const [sCost, setSCost] = useState(0);
   const [tCost, setTCost] = useState(0);
   const [isLoggedIn, setIsLoggedIn] = useState(0);
+  const [error, setError] = useState([0, '']);
 
   useEffect(() => {
     (async () => {
@@ -25,6 +25,11 @@ export default function CostPackage() {
   }, []);
 
   const handleSubmit = () => {
+    if (id === '') {
+      setError([1, 'Please enter a package id']);
+      return;
+    }
+    setError([0, 'Fetching cost data...']);
     axios
       .get(`${config.apiBaseUrl}/package/${id}/cost`, {
         headers: {
@@ -37,14 +42,14 @@ export default function CostPackage() {
         if (costData) {
           setSCost(costData.standaloneCost);
           setTCost(costData.totalCost);
+          setError([2, '']);
         } else {
-          console.error('Invalid response structure');
-          message.error('Error: Cost data not found');
+          setError([1, 'Invalid response structure']);
         }
       })
       .catch((err) => {
         console.error(err);
-        message.error('Error fetching cost data');
+        setError([1, 'Failed to fetch cost data']);
       });
   };
 
@@ -68,13 +73,16 @@ export default function CostPackage() {
               value={id}
               onChange={(e) => setId(e.target.value)}
               style={{ margin: '0px' }}
+              title="package-id"
             />
           </div>
           <div>
             <button onClick={handleSubmit}>Submit</button>
           </div>
-          <h2>Standalone Cost: {sCost}</h2>
-          <h2>Total Cost: {tCost}</h2>
+          {error[0] == 0 && <span>{error[1]}</span>}
+          {error[0] == 1 && <span style={{ color: 'red' }}>{error[1]}</span>}
+          {error[0] == 2 && !!sCost && <h2>Standalone Cost: {sCost}</h2>}
+          {error[0] == 2 && <h2>Total Cost: {tCost}</h2>}
         </div>
       )}
       {isLoggedIn === 2 && <h1>Please Login First</h1>}

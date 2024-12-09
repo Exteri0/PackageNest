@@ -35,6 +35,7 @@ const lgplCompatibleSpdxIds: string[] = [
   "CC0-1.0",
 ];
 
+
 function getLatency(startTime: number): number {
   return Number(((performance.now() - startTime) / 1000).toFixed(3));
 }
@@ -137,6 +138,6 @@ export async function calculateLicenseMetric(
     } else {
       console.error(error);
     }
-    return { LicenseScore: -1, LicenseScoreLatency: 0 };
+    return { LicenseScore: 0, LicenseScoreLatency: 0 };
   }
 }

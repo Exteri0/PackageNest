@@ -6,6 +6,22 @@ import {
   packageIdCostGET,
   AuthenticationToken,
 } from "./service/DefaultService.js";
+import swaggerJSDoc from "swagger-jsdoc";
+import swaggerUi from "swagger-ui-express";
+
+const swaggerOptions = {
+  definition: {
+    openapi: "3.0.0",
+    info: {
+      title: "PackageNest API",
+      version: "1.0.0",
+      description: "API documentation for the PackageNest project",
+    },
+  },
+  apis: ["./routes.js"], // Path to the API routes
+};
+
+const swaggerSpec = swaggerJSDoc(swaggerOptions);
 
 console.log("Routes file loaded");
 
@@ -15,6 +31,7 @@ export interface AuthenticatedRequest extends Request {
 }
 
 export default (app: Express) => {
+  app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
   // POST /packages
   app.post(
     "/packages",
@@ -72,8 +89,6 @@ export default (app: Express) => {
     }
   );
 
-  
-
   // GET /package/{id}
   app.get(
     "/package/:id",
@@ -102,7 +117,7 @@ export default (app: Express) => {
     (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
       verifyJWT(req, res, next, false, false);
     },
-    async (req: AuthenticatedRequest, res: Response, next: NextFunction)=> {
+    async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
       console.log("Received POST /package/:id request");
       console.log("ID is:", req.params.id);
       try {
@@ -176,7 +191,7 @@ export default (app: Express) => {
     (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
       DefaultController.PackageByNameGet(req, res, next);
     }
-  )
+  );
 
   // GET /tracks (tracksGET expects req, res, next)
   app.get("/tracks", (req: Request, res: Response, next: NextFunction) => {
@@ -223,6 +238,25 @@ export default (app: Express) => {
     }
   );
 
+  //GET /history/:id
+  app.get(
+    "/package/history/:id",
+    (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+      verifyJWT(req, res, next, false, false);
+    },
+    async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+      console.log("Received GET /history request");
+      console.log("ID is:", req.params.id);
+      try {
+        await DefaultController.GetHistory(req, res, next);
+        console.log("History response sent successfully");
+      } catch (error) {
+        console.error("Error in /history route handler:", error);
+        next(error);
+      }
+    }
+  );
+
   // POST /populate
   app.post(
     "/populate",
@@ -236,6 +270,39 @@ export default (app: Express) => {
         console.log("Populate response sent successfully");
       } catch (error) {
         console.error("Error in /populate route handler:", error);
+        next(error);
+      }
+    }
+  );
+
+  app.delete(
+    "/deleteSelf",
+    (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+      verifyJWT(req, res, next, false, false);
+    },
+    async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+      console.log("Received DELETE /deleteSelf request");
+      try {
+        await DefaultController.deleteSelf(req, res, next);
+        console.log("Delete self response sent successfully");
+      } catch (error) {
+        console.error("Error in /deleteSelf route handler:", error);
+        next(error);
+      }
+    }
+  );
+  app.delete(
+    "/user/:id",
+    (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+      verifyJWT(req, res, next, true, false);
+    },
+    async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+      console.log("Received DELETE /user/:id request");
+      try {
+        await DefaultController.deleteUser(req, res, next);
+        console.log("Delete user response sent successfully");
+      } catch (error) {
+        console.error("Error in /user/:id route handler:", error);
         next(error);
       }
     }

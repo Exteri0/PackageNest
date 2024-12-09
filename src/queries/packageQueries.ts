@@ -1,6 +1,6 @@
 import { String } from "aws-sdk/clients/batch";
 import { getDbPool } from "../service/databaseConnection.js";
-import { PackageMetadata, PackageData } from "../service/DefaultService.js";
+import { PackageMetadata, PackageData, AuthenticationToken } from "../service/DefaultService.js";
 import { Package, PackageQuery } from "../service/DefaultService.js";
 import { CustomError } from "../utils/types.js";
 
@@ -199,7 +199,7 @@ export const getPackageDetails = async (
 // Check if package exists by packageId
 export const packageExists = async (packageId: string): Promise<PackageData | boolean> => {
   console.log("Checking if package exists");
-  const query = `SELECT name, version, package_id FROM public."packages" WHERE package_id = $1 LIMIT 1`;
+  const query = `SELECT name, version, package_id, content_type FROM public."packages" WHERE package_id = $1 LIMIT 1`;
   try {
     const res = await getDbPool().query(query, [packageId]);
     console.log("Query result:", JSON.stringify(res.rows));
@@ -419,15 +419,15 @@ export async function updatePackageData(
 
 export async function insertIntoPackageHistory(
   packageId: string,
-  userId: number,
+  userName: string,
   action: string
 ): Promise<void> {
   try{
     const query = `
-    INSERT INTO public.package_history (package_id, user_id, action)
+    INSERT INTO public.package_history (package_id, user_name, action)
     VALUES ($1, $2, $3);
     `;
-    await getDbPool().query(query, [packageId, userId, action]);
+    await getDbPool().query(query, [packageId, userName, action]);
   }
   catch (error:any){
     console.error(`Error inserting into package history: ${error}`);
@@ -435,12 +435,53 @@ export async function insertIntoPackageHistory(
   }
 }
 
-export async function getPackageHistory(packageId: string): Promise<{userId: string, action: string, timestamp: string}[]> {
+export async function getPackageHistory(packageId: string): Promise<{user_name: string, action: string, timestamp: string}[]> {
   try{
     const query = `
-      SELECT user_id, action, action_date
+      SELECT user_name, action, action_date
       FROM public.package_history
       WHERE package_id = $1;
+    `;
+    const result = await getDbPool().query(query, [packageId]);
+    return result.rows.map((row: any) => ({
+      user_name: row.user_name,
+      action: row.action,
+      timestamp: row.action_date
+      }));
+  }
+  catch (error:any){
+    console.error(`Error fetching package history: ${error}`);
+    throw new CustomError("Error fetching package history", 500);
+  }
+}
+
+export async function getUserFromToken(auth: AuthenticationToken): Promise <string> {
+  const query = `SELECT name FROM public.authentication_tokens JOIN public.users ON public.authentication_tokens.user_id = public.users.id WHERE token = $1`;
+  try{
+    console.log("Getting user from token");
+    const modifiedToken = auth.token.slice(7);
+    console.log("Modified token:", modifiedToken);
+    const result = await getDbPool().query(query, [modifiedToken]);
+    console.log("Query result:", JSON.stringify(result.rows));
+    if(result.rows.length === 0){
+      throw new CustomError("User not found", 404);
+    }
+    else{
+      return result.rows[0].name;
+    }
+  }
+  catch(error: any){
+    console.error(`Error fetching user from token: ${error}`);
+    throw new CustomError("Error fetching user from token", 500);
+  }
+}
+
+export async function getPackageUploader(packageId: string): Promise<{user_name: string, action: string, timestamp: string}[]> {
+  try{
+    const query = `
+      SELECT user_name, action, action_date
+      FROM public.package_history
+      WHERE package_id = $1 AND action = 'UPLOAD';
     `;
     const result = await getDbPool().query(query, [packageId]);
     return result.rows.map((row: any) => ({

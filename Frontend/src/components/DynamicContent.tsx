@@ -9,6 +9,8 @@ import Tracks from './Tracks';
 import Login from './Login';
 import Regsiter from './Register';
 import Logout from './Logout';
+import UpdatePackage from './UpdatePackage';
+import DeleteUser from './DeleteUser';
 
 interface DynamicContentProps {
   selectedAction: string;
@@ -21,6 +23,7 @@ const DynamicContent: React.FC<DynamicContentProps> = ({ selectedAction }) => {
     case 'uploadPackage':
       return <UploadPackage />;
     case 'updatePackage':
+      return <UpdatePackage />;
     case 'ratePackage':
       return <RatePackage />;
     case 'resetRegistry':
@@ -37,6 +40,8 @@ const DynamicContent: React.FC<DynamicContentProps> = ({ selectedAction }) => {
       return <Regsiter />;
     case 'logout':
       return <Logout />;
+    case 'deleteUser':
+      return <DeleteUser />;
     default:
       return <EmptyContent />;
   }

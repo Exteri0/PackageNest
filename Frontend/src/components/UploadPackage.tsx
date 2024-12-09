@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Button, Switch, Upload, message } from 'antd';
+import { Switch, Upload } from 'antd';
 import axios from 'axios';
 import config from '../config';
 import { validateStoredToken } from '../utils';
@@ -14,6 +14,7 @@ const UploadPackage: React.FC = () => {
   const [debloat, setDebloat] = useState<boolean>(false);
   const [githubUrl, setGithubUrl] = useState<string>('');
   const [isLoggedIn, setIsLoggedIn] = useState(0);
+  const [error, setError] = useState([0, '']);
 
   useEffect(() => {
     (async () => {
@@ -38,6 +39,11 @@ const UploadPackage: React.FC = () => {
   // Function to convert file to base64 and send POST request
   const handleUpload = async () => {
     if (selectedFile && uploadMethod === 'uploadZip') {
+      if (name === '' || jsProgram === '') {
+        setError([1, 'Please enter a package name and JS program.']);
+        return;
+      }
+      setError([0, 'Uploading package...']);
       const base64String = await convertFileToBase64(selectedFile);
       console.log('this is my 64 encoded string', base64String);
       // Send the base64 string to your API
@@ -57,15 +63,25 @@ const UploadPackage: React.FC = () => {
           },
         )
         .then((response) => {
-          message.success('File uploaded successfully!');
+          setError([2, 'File uploaded successfully!']);
           console.log(response.data);
         })
         .catch((error) => {
-          message.error('Failed to upload file.');
+          setError([1, 'Failed to upload file.']);
           console.error(error);
         });
     } else if (uploadMethod === 'uploadGithub') {
-      message.info('Uploading file from GitHub URL...');
+      if (githubUrl === '') {
+        setError([1, 'Please enter a URL.']);
+        return;
+      }
+      const urlPattern =
+        /^(https:\/\/github\.com\/.+\/.+|https:\/\/www\.npmjs\.com\/package\/.+)$/;
+      if (!urlPattern.test(githubUrl)) {
+        setError([1, 'Please enter a valid GitHub or NPM URL.']);
+        return;
+      }
+      setError([0, 'Uploading package...']);
       axios
         .post(
           `${config.apiBaseUrl}/package`,
@@ -80,15 +96,15 @@ const UploadPackage: React.FC = () => {
           },
         )
         .then((response) => {
-          message.success('File uploaded successfully!');
+          setError([2, 'File uploaded successfully!']);
           console.log(response.data);
         })
         .catch((error) => {
-          message.error('Failed to upload file.');
+          setError([1, 'Failed to upload file.']);
           console.error(error);
         });
     } else {
-      message.warning('Please select a file to upload.');
+      setError([1, 'Please select a file to upload.']);
     }
   };
 
@@ -101,7 +117,8 @@ const UploadPackage: React.FC = () => {
         const base64String = (reader.result as string).split(',')[1]; // Remove the prefix (data:application/zip;base64,)
         resolve(base64String);
       };
-      reader.onerror = (error) => reject(error);
+      reader.onerror = () =>
+        reject(new Error('Error converting file to base64'));
     });
   };
 
@@ -115,6 +132,7 @@ const UploadPackage: React.FC = () => {
             onChange={(e) =>
               setUploadMethod(e.target.value as 'uploadZip' | 'uploadGithub')
             }
+            title="select-upload-method"
           >
             <option value="uploadZip">Upload Zip File</option>
             <option value="uploadGithub">Upload by GitHub URL</option>
@@ -126,8 +144,9 @@ const UploadPackage: React.FC = () => {
                   multiple={false}
                   beforeUpload={handleFileChange}
                   accept=".zip"
+                  style={{ fontSize: '20px', color: '#000' }}
                 >
-                  <Button>Upload File</Button>
+                  Upload File
                 </Upload.Dragger>
               </div>
               <div>
@@ -145,7 +164,11 @@ const UploadPackage: React.FC = () => {
                   onChange={(e) => setJsProgram(e.target.value)}
                 />
                 <span style={{ color: '#000', margin: '30px' }}>Debloat</span>
-                <Switch checked={debloat} onChange={(e) => setDebloat(e)} />
+                <Switch
+                  title="select-debload"
+                  checked={debloat}
+                  onChange={(e) => setDebloat(e)}
+                />
               </div>
             </>
           ) : (
@@ -162,11 +185,10 @@ const UploadPackage: React.FC = () => {
           </button>
         </>
       )}
-      {isLoggedIn === 2 && (
-        <div style={{ color: 'red', textAlign: 'center' }}>
-          You must be logged in to access this content.
-        </div>
-      )}
+      {isLoggedIn === 2 && <h1>Please Login First</h1>}
+      {error[0] === 0 && <span style={{ color: 'black' }}>{error[1]}</span>}
+      {error[0] === 1 && <span style={{ color: 'red' }}>{error[1]}</span>}
+      {error[0] === 2 && <span style={{ color: 'green' }}>{error[1]}</span>}
     </>
   );
 };
