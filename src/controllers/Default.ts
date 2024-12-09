@@ -11,6 +11,7 @@ import {
 } from "../utils/types.js";
 import jwt from "jsonwebtoken";
 import { stringify } from "querystring";
+import * as packageQueries from "../queries/packageQueries.js";
 
 export const CreateAuthToken = async (
   req: AuthenticatedRequest,
@@ -125,8 +126,10 @@ export const PackageCreate = async (
       token: req.headers["x-authorization"]?.toString() ?? "",
     };
     console.log("xAuthorization token:", xAuthorization.token);
-
+    const user = await packageQueries.getUserFromToken(xAuthorization);
+    console.log("User is: ", user)
     const response = await Default.packageCreate(
+      user,
       body.Content,
       body.URL,
       body.debloat,
@@ -134,6 +137,7 @@ export const PackageCreate = async (
       body.customName
     );
     console.log("Response from packageCreate:", response);
+
 
     res.status(201).json(response);
     console.log("Response sent from PackageCreate controller");
@@ -255,6 +259,8 @@ export const PackageRetrieve = async (
     token: req.headers["x-authorization"]?.toString() ?? "",
   };
   console.log(`xAuthorization token: ${xAuthorization.token}`);
+  const user = await packageQueries.getUserFromToken(xAuthorization);
+  console.log("User is: ", user)
 
   // Extract and log the package ID from request parameters
   const id: string = req.params.id;
@@ -262,7 +268,7 @@ export const PackageRetrieve = async (
 
   try {
     // Call the service layer to retrieve the package
-    const response = await Default.packageRetrieve(xAuthorization, id);
+    const response = await Default.packageRetrieve(xAuthorization, id, user);
     console.log(
       "Response from packageRetrieve:",
       JSON.stringify(response, null, 2)
@@ -286,6 +292,32 @@ export const PackageRetrieve = async (
   }
 };
 
+export const GetHistory = async(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  console.log("Entered PackageUpdate controller function");
+  try {
+    const xAuthorization: Default.AuthenticationToken = {
+      token: req.headers["x-authorization"]?.toString() || "",
+    };
+    const id = req.params.id; // Extracted ID from the URL path
+    const user = await packageQueries.getUserFromToken(xAuthorization);
+    console.log("Received ID:", id);
+    console.log("User is: ", user);
+    const resp = await Default.getHistory(id);
+    console.log("Response from getHistory:", JSON.stringify(resp));
+    res.status(200).json(resp);
+  } catch (error: any) {
+    if (error instanceof CustomError) {
+      res.status(error.status).json({ error: error.message });
+    } else {
+      res.status(500).json({ error: error.message || "An error occurred" });
+    }
+  }
+}
+
 export const PackageUpdate = async (
   req: AuthenticatedRequest,
   res: Response,
@@ -298,11 +330,12 @@ export const PackageUpdate = async (
     };
     const id = req.params.id; // Extracted ID from the URL path
     const body = req.body;
-
+    const user = await packageQueries.getUserFromToken(xAuthorization);
     console.log("Received ID:", id);
     console.log("Request Body:", body);
 
     const response = await Default.packageUpdate(
+      user,
       id,
       body.metadata?.Name,
       body.metadata?.Version,
