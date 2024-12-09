@@ -4,15 +4,6 @@ import { PackageMetadata, PackageData, AuthenticationToken } from "../service/De
 import { Package, PackageQuery } from "../service/DefaultService.js";
 import { CustomError } from "../utils/types.js";
 
-
-/**
- * Extract a ZIP buffer to a specified directory.
- * @param conditions - where cases.
- * @param queryParams - parameters like offset and limit.
- * @param limit - the limit of the response.
- * @param offset - the number of rows to be skipped in the response.
- * @returns - the package metadata array with all matching packages.
- */
 export async function getPackages(
   conditions: string[],
   queryParams: any[],
@@ -55,10 +46,8 @@ export async function getPackages(
   }
 }
 
-/**
- * @param packageId 
- * @returns - the package main data for the given packageId.
- */
+// Retrieve a package by ID
+// needs to be updated to retrieve dependencies as well (a list of dependency package ids)
 export const getPackageById = async (packageId: string) => {
   const query = `SELECT * FROM public."packages" WHERE pacakage_id = $1`;
   try {
@@ -71,11 +60,7 @@ export const getPackageById = async (packageId: string) => {
 };
 
 
-/**
- * 
- * @param name 
- * @returns - all matching packages whose name is equal to the given name.
- */
+// Retrieve a package by name
 export const getPackageByName = async (name: string) => {
   const query = `SELECT * FROM public."packages" WHERE name = $1;`;
   try {
@@ -87,11 +72,7 @@ export const getPackageByName = async (name: string) => {
   }
 };
 
-/**
- * 
- * @param name - name of the package whose version is changed 
- * @param version - new version of the package
- */
+// Package version update
 export const updatePackageVersion = async (name: string, version: string) => {
   const query = `UPDATE public."packages" SET version = $1, updated_at = NOW() WHERE package_id = $2;`;
   try {
@@ -101,15 +82,6 @@ export const updatePackageVersion = async (name: string, version: string) => {
     throw error;
   }
 };
-
-/**
- * LEGACY CODE FOR RATING
- * @param packageId  - ID of the package to be deleted
- * @param busFactor - bus factor of the package
- * @param correctness - correctness of the package
- * @param rampUp - ramp up of the package
- * @param licenseScore - license score of the package
- */
 
 export const insertPackageRating = async (
   packageId: number,
@@ -133,12 +105,6 @@ export const insertPackageRating = async (
   }
 };
 
-/**
- * @param packageName - name of package to be inserted
- * @param packageVersion - version of the package to be inserted
- * @param packageId - ID of the package to be inserted
- * @param contentType - content type of the package to be inserted (true = ZIP /false = URL)
- */
 export const insertPackageQuery = async (
   packageName: string | undefined,
   packageVersion: string,
@@ -164,13 +130,6 @@ export const insertPackageQuery = async (
   }
 };
 
-/**
- * @param packageName - name of package to be inserted
- * @param packageVersion - version of the package to be inserted
- * @param packageId - ID of the package to be inserted
- * @param readme - readme of the package to be inserted
- */
-
 export const insertIntoMetadataQuery = async (
   packageName: string | undefined,
   packageVersion: string,
@@ -193,13 +152,7 @@ export const insertIntoMetadataQuery = async (
   }
 };
 
-/**
- * @param packageId - ID of the package to be inserted
- * @param contentType - content type of the package to be inserted (true = ZIP /false = URL)
- * @param packageURL - URL of the package to be inserted
- * @param debloat - debloat of the package to be inserted
- * @param jsProgram - js program of the package to be inserted
- */
+
 export const insertIntoPackageDataQuery = async (
   packageId: string,
   contentType: boolean,
@@ -226,8 +179,7 @@ export const insertIntoPackageDataQuery = async (
 };
 
 
-
-
+// Retrieve package details by packageId
 export const getPackageDetails = async (
   packageId: string
 ): Promise<{ packageName: string; version: string }> => {
@@ -244,9 +196,7 @@ export const getPackageDetails = async (
   }
 };
 
-/**
- * @param packageId - ID of the package to be checked
- */
+// Check if package exists by packageId
 export const packageExists = async (packageId: string): Promise<PackageData | boolean> => {
   console.log("Checking if package exists");
   const query = `SELECT name, version, package_id, content_type FROM public."packages" WHERE package_id = $1 LIMIT 1`;
@@ -270,10 +220,7 @@ export const packageExists = async (packageId: string): Promise<PackageData | bo
   }
 };
 
-/**
- * @param packageId - ID of the package to get the cached size for
- * @param dependency - whether to get the total cost or standalone cost
- */
+// Get cached size
 export const getCachedSize = async (
   packageId: string,
   dependency: boolean
@@ -291,12 +238,7 @@ export const getCachedSize = async (
   }
 };
 
-/**
- * 
- * @param packageId - ID of the package to set the cached size for
- * @param size - size to set
- * @param dependency - whether to set the total cost or standalone cost
- */
+// Set cached size
 export const setCachedSize = async (
   packageId: string,
   size: number,
@@ -316,12 +258,6 @@ export const setCachedSize = async (
     throw error;
   }
 };
-
-/**
- * 
- * @param packageId - ID of the package to get the cached size for
- * @param metrics - metrics to insert
- */
 
 export async function insertIntoPackageRatingsQuery(packageId: string, metrics: any): Promise<void> {
   console.log(`Inserting metrics into package_ratings for packageId: ${packageId}`);
@@ -420,11 +356,6 @@ export interface PackageRatings {
   net_score_latency: number;
 }
 
-/**
- * 
- * @param packageId - ID of the package to get the ratings for
- * @returns - the ratings for the given packageId
- */
 export async function getPackageRatings(packageId: string): Promise<PackageRatings | null> {
   const query = `
     SELECT 
@@ -449,12 +380,6 @@ export async function getPackageRatings(packageId: string): Promise<PackageRatin
   return result.rows[0];
 }
 
-/**
- * 
- * @param packageId - ID of the updated package
- * @param name - name of the package to be updated
- * @param version - version of the updated package
- */
 export async function updatePackageMetadata(
   packageId: string,
   name: string,
@@ -472,14 +397,7 @@ export async function updatePackageMetadata(
   }
 }
 
-/**
- * 
- * @param packageId - ID of the updated package
- * @param contentType - content type of the updated package
- * @param debloat - debloat
- * @param jsProgram - js program
- * @param url - URL if exists for the updated package
- */
+
 export async function updatePackageData(
   packageId: string,
   contentType: boolean,
@@ -499,12 +417,6 @@ export async function updatePackageData(
   }
 }
 
-/**
- * 
- * @param packageId - ID of the package to insert history entry for
- * @param username - username of the user who performed the action
- * @param action - action performed (e.g. UPLOAD, UPDATE, DOWNLOAD)
- */
 export async function insertIntoPackageHistory(
   packageId: string,
   userName: string,
@@ -523,11 +435,6 @@ export async function insertIntoPackageHistory(
   }
 }
 
-/**
- * 
- * @param packageId - ID of the package to get the history for
- * @returns - the history of the given packageId
- */
 export async function getPackageHistory(packageId: string): Promise<{user_name: string, action: string, timestamp: string}[]> {
   try{
     const query = `
@@ -581,11 +488,6 @@ export async function getPackageUploader(packageId: string): Promise<string> {
 }
 
 
-/**
- * 
- * @param auth - authentication token
- * @returns user name from the token
- */
 export async function getUserFromToken(auth: AuthenticationToken): Promise <string> {
   const query = `SELECT name,token FROM public.authentication_tokens JOIN public.users ON public.authentication_tokens.user_id = public.users.id WHERE token = $1`;
   try{
@@ -610,3 +512,4 @@ export async function getUserFromToken(auth: AuthenticationToken): Promise <stri
     throw new CustomError("Error fetching user from token", 500);
   }
 }
+
