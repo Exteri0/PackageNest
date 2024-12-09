@@ -60,5 +60,5 @@ jobs:
         run: |
           echo "$PRIVATE_KEY" > private_key.pem
           chmod 600 private_key.pem
-          ssh -i private_key.pem ubuntu@3.12.111.89 'pm2 kill && bash kill_port_3000.sh && cd ~/app3 && npm install --production && bash deploy.sh deploy'
+          ssh -i private_key.pem ubuntu@3.12.111.89 'pm2 kill && cd ~/app3 && npm install --production && bash deploy.sh deploy'
           rm private_key.pem

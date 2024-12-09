@@ -1642,7 +1642,7 @@ export function testGET(
         {
           Version: "1.2.3",
           ID: "testing",
-          Name: "Nameasdasdasds",
+          Name: "this is modified",
         },
         {
           Version: "1.2.3",
