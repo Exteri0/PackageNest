@@ -448,12 +448,12 @@ export async function packageByRegExGet(
  * @throws CustomError if any step fails.
  */
 export async function packageCreate(
-  User: string, 
+  User: string,
   Content?: string,
   URL?: string,
   debloat?: boolean,
   JSProgram?: string,
-  customName?: string,
+  customName?: string
   // Added customName parameter
 ) {
   // Initialize variables to hold package information
@@ -729,10 +729,9 @@ export async function packageCreate(
           );
         }
       } catch (error: any) {
-        if(error instanceof CustomError){
+        if (error instanceof CustomError) {
           throw error;
-        }
-        else {
+        } else {
           throw new CustomError(
             `Failed to process package URL: ${error.message}`,
             500
@@ -790,7 +789,9 @@ export async function packageCreate(
       console.log("Package data inserted into the 'package_data' table.");
 
       //Insert into history table
-      console.log("Inserting package history into the 'package_history' table.");
+      console.log(
+        "Inserting package history into the 'package_history' table."
+      );
       await packageQueries.insertIntoPackageHistory(packageId, User, "CREATE");
 
       // Insert metrics into the 'package_ratings' table if metrics are available
@@ -1427,10 +1428,18 @@ export async function packageUpdate(
       URL
     );
     console.log("Inserting into history table");
-    await packageQueries.insertIntoPackageHistory(existingPackage.ID, user, "UPDATE");
+    await packageQueries.insertIntoPackageHistory(
+      existingPackage.ID,
+      user,
+      "UPDATE"
+    );
 
     console.log("Inserting new package into history table");
-    await packageQueries.insertIntoPackageHistory(updatedPackageId, user, "CREATE");
+    await packageQueries.insertIntoPackageHistory(
+      updatedPackageId,
+      user,
+      "CREATE"
+    );
 
     // Insert metrics if available
     if (metrics) {
@@ -1733,7 +1742,7 @@ export function testGET(
         {
           Version: "1.2.3",
           ID: "testing",
-          Name: "Name",
+          Name: "this is modified",
         },
         {
           Version: "1.2.3",
@@ -1789,15 +1798,14 @@ export async function populatePackages(
 
 export async function getHistory(
   id: string
-): Promise <{user_name: string, action: string, timestamp: string}[]> {
+): Promise<{ user_name: string; action: string; timestamp: string }[]> {
   try {
     const history = await packageQueries.getPackageHistory(id);
     return history;
   } catch (error: any) {
     if (error instanceof CustomError) {
       throw error;
-    }
-    else{
+    } else {
       throw new CustomError("Failed to retrieve package history.", 500);
     }
   }
