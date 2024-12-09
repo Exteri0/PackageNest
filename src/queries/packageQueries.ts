@@ -455,8 +455,41 @@ export async function getPackageHistory(packageId: string): Promise<{user_name: 
   }
 }
 
+/**
+ * Retrieves the uploader's username for a given package ID.
+ *
+ * @param packageId - The ID of the package.
+ * @returns The uploader's username.
+ * @throws CustomError if uploader is not found or on database errors.
+ */
+export async function getPackageUploader(packageId: string): Promise<string> {
+  try {
+    const query = `
+      SELECT user_name
+      FROM public.package_history
+      WHERE package_id = $1 AND action = 'CREATE'
+      ORDER BY action_date ASC
+      LIMIT 1;
+    `;
+    const result = await getDbPool().query(query, [packageId]);
+
+    if (result.rows.length === 0) {
+      console.error(`Uploader not found for package ID: ${packageId}`);
+      throw new CustomError("Uploader not found for the specified package.", 500);
+    }
+
+    const uploaderUsername = result.rows[0].user_name;
+    console.log(`Found uploader username: ${uploaderUsername} for package ID: ${packageId}`);
+    return uploaderUsername;
+  } catch (error: any) {
+    console.error(`Error fetching uploader for package ID ${packageId}: ${error}`);
+    throw new CustomError("Error fetching uploader information.", 500);
+  }
+}
+
+
 export async function getUserFromToken(auth: AuthenticationToken): Promise <string> {
-  const query = `SELECT name FROM public.authentication_tokens JOIN public.users ON public.authentication_tokens.user_id = public.users.id WHERE token = $1`;
+  const query = `SELECT name,token FROM public.authentication_tokens JOIN public.users ON public.authentication_tokens.user_id = public.users.id WHERE token = $1`;
   try{
     console.log("Getting user from token");
     const modifiedToken = auth.token.slice(7);
@@ -471,27 +504,12 @@ export async function getUserFromToken(auth: AuthenticationToken): Promise <stri
     }
   }
   catch(error: any){
+    if (error instanceof CustomError){
+      console.error(`Error : ${error.message}`)
+      throw (error);
+    }
     console.error(`Error fetching user from token: ${error}`);
     throw new CustomError("Error fetching user from token", 500);
   }
 }
 
-export async function getPackageUploader(packageId: string): Promise<{user_name: string, action: string, timestamp: string}[]> {
-  try{
-    const query = `
-      SELECT user_name, action, action_date
-      FROM public.package_history
-      WHERE package_id = $1 AND action = 'UPLOAD';
-    `;
-    const result = await getDbPool().query(query, [packageId]);
-    return result.rows.map((row: any) => ({
-      userId: row.user_id,
-      action: row.action,
-      timestamp: row.action_date
-      }));
-  }
-  catch (error:any){
-    console.error(`Error fetching package history: ${error}`);
-    throw new CustomError("Error fetching package history", 500);
-  }
-}

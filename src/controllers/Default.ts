@@ -258,6 +258,7 @@ export const PackageRetrieve = async (
   const xAuthorization: Default.AuthenticationToken = {
     token: req.headers["x-authorization"]?.toString() ?? "",
   };
+  try {
   console.log(`xAuthorization token: ${xAuthorization.token}`);
   const user = await packageQueries.getUserFromToken(xAuthorization);
   console.log("User is: ", user)
@@ -266,7 +267,7 @@ export const PackageRetrieve = async (
   const id: string = req.params.id;
   console.log(`PackageRetrieve request ID: ${id}`);
 
-  try {
+  
     // Call the service layer to retrieve the package
     const response = await Default.packageRetrieve(xAuthorization, id, user);
     console.log(

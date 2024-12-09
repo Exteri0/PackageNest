@@ -10,6 +10,11 @@ import "dotenv/config";
 import { getDbPool } from "./databaseConnection.js";
 import * as packageQueries from "../queries/packageQueries.js";
 import { calculateMetrics } from "../Metrics/metricExport.js";
+import { execFile } from "child_process";
+import { promisify } from "util";
+import * as fs from "fs/promises";
+import * as path from "path";
+import * as os from "os";
 import {
   calculateSize,
   debloatPackage,
@@ -50,6 +55,8 @@ import {
 } from "../utils/readmeExtractor.js"; // Adjust the path if necessary
 import { get } from "http";
 import { version } from "os";
+const execFileAsync = promisify(execFile);
+
 
 const bucketName = process.env.S3_BUCKET_NAME;
 const s3 = new awsSdk.S3({
@@ -970,28 +977,67 @@ export async function packageRate(
 }
 
 /**
- * (BASELINE)
- * Return this package.
- *
- * @param xAuthorization AuthenticationToken
- * @param id PackageID
- * @returns Promise<Package>
+ * Executes the provided JSProgram with the given arguments.
+ * 
+ * @param jsProgram - The JavaScript code to execute.
+ * @param args - Array of command-line arguments.
+ * @returns An object containing stdout and exitCode.
+ * @throws CustomError if execution fails.
+ */
+async function executeJSProgram(jsProgram: string, args: string[]): Promise<{ stdout: string; exitCode: number }> {
+  // Create a temporary directory
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'jsprog-'));
+  
+  try {
+    const jsFilePath = path.join(tempDir, 'jsprog.js');
+    console.log(`Hello I just entered, write path is: ${jsFilePath}`)
+    // Write the JSProgram to a temporary file
+    await fs.writeFile(jsFilePath, jsProgram, { encoding: 'utf-8', mode: 0o700 });
+    
+    // Execute the JSProgram using Node.js v22
+    const nodePath = '/usr/bin/node'; 
+    console.log(`The nodePath is: ${nodePath}`)
+    console.log(`The jsFilePath: ${jsFilePath}`)
+    console.log(`The arguments: ${args}`)
+    const { stdout } = await execFileAsync(nodePath, [jsFilePath, ...args], { cwd: tempDir, timeout: 20000 }); 
+    console.log(`The stdout from executeJSProg gives: ${stdout}`)
+    
+    // JSProgram executed successfully
+    return { stdout, exitCode: 0 };
+  } catch (error: any) {
+    if (error.code === 'ETIMEDOUT') {
+      throw new CustomError("JSProgram execution timed out.", 400);
+    }
+    // If the JSProgram exited with a non-zero code
+    if (error.code !== undefined) {
+      return { stdout: error.stdout || '', exitCode: error.code };
+    }
+    throw new CustomError("Failed to execute JSProgram.", 400);
+  } finally {
+    // Cleanup: Remove the temporary directory and its contents
+    await fs.rm(tempDir, { recursive: true, force: true });
+  }
+}
+
+/**
+ * Retrieves a package, executes associated JSProgram (if any), and returns the package data.
+ * 
+ * @param xAuthorization - AuthenticationToken
+ * @param id - Package ID
+ * @param user - Downloader's username
+ * @returns The package data or throws an error.
  */
 export async function packageRetrieve(
   xAuthorization: AuthenticationToken,
   id: string,
   user: string
-) {
+): Promise<Package> {
   console.log("Entered packageRetrieve function with ID:", id);
-  console.log(
-    "Received xAuthorization:",
-    JSON.stringify(xAuthorization, null, 2)
-  );
+  console.log("Received xAuthorization:", JSON.stringify(xAuthorization, null, 2));
+  console.log("Downloader Username:", user);
 
   if (!bucketName) {
-    console.error(
-      "S3_BUCKET_NAME is not defined in the environment variables."
-    );
+    console.error("S3_BUCKET_NAME is not defined in the environment variables.");
     throw new CustomError(
       "S3_BUCKET_NAME is not defined in the environment variables.",
       500
@@ -1002,11 +1048,11 @@ export async function packageRetrieve(
     // Retrieve package metadata from the packages and package_data tables using the provided ID
     const metadataQuery = `
       SELECT 
-        p.name AS packageName, 
-        p.version AS packageVersion, 
-        p.package_id AS packageId,
-        pd.url AS packageURL, 
-        pd.js_program AS packageJS, 
+        p.name AS packagename, 
+        p.version AS packageversion, 
+        p.package_id AS packageid,
+        pd.url AS packageurl, 
+        pd.js_program AS packagejs, 
         p.content_type
       FROM public.packages AS p
       JOIN public.package_data AS pd ON p.package_id = pd.package_id
@@ -1034,46 +1080,100 @@ export async function packageRetrieve(
       throw new CustomError("Package not found.", 404);
     }
 
-    // Construct the S3 key to retrieve the zip file based on packageName and packageVersion
-    const s3Key = `packages/${metadata.packagename}/v${metadata.packageversion}/package.zip`;
-    const s3Params = {
-      Bucket: bucketName,
-      Key: s3Key,
+    // Check if there is an associated JSProgram
+    if (metadata.packagejs) {
+      console.log("JSProgram found for this package. Executing JSProgram...");
+
+      // Retrieve Uploader Username using the new function
+      const uploaderUsername = await packageQueries.getPackageUploader(id);
+      console.log("Uploader Username:", uploaderUsername);
+
+      // Downloader Username is passed as 'user' parameter
+      const downloaderUsername = user;
+      console.log("Downloader Username:", downloaderUsername);
+
+      // Determine the ZIP file path
+      // Download the package ZIP from S3 to a temporary location
+      const s3Key = `packages/${metadata.packagename}/v${metadata.packageversion}/package.zip`;
+      const s3Params = {
+        Bucket: bucketName!,
+        Key: s3Key,
+      };
+
+      console.log("Fetching package content from S3 with key:", s3Key);
+      const s3Object = await s3.getObject(s3Params).promise();
+      const zipContent = s3Object.Body as Buffer;
+
+      // Create a temporary file to store the ZIP
+      const tempZipDir = await fs.mkdtemp(path.join(os.tmpdir(), 'package-'));
+      const tempZipPath = path.join(tempZipDir, 'package.zip');
+
+      await fs.writeFile(tempZipPath, zipContent);
+      console.log(`Package ZIP downloaded to temporary path: ${tempZipPath}`);
+
+      // Execute the JSProgram with the required arguments
+      const jsProgram = metadata.packagejs;
+      const moduleName = metadata.packagename;
+      const moduleVersion = metadata.packageversion;
+      const zipFilePath = tempZipPath;
+
+      const args = [
+        moduleName,
+        moduleVersion,
+        uploaderUsername,
+        downloaderUsername,
+        zipFilePath,
+      ];
+
+      console.log("Executing JSProgram with arguments:", args);
+
+      const { stdout, exitCode } = await executeJSProgram(jsProgram, args);
+      console.log("JSProgram executed with exit code:", exitCode);
+      console.log("JSProgram stdout:", stdout);
+
+      if (exitCode !== 0) {
+        // JSProgram indicates failure, reject the download
+        throw new CustomError(`JSProgram execution failed: ${stdout}`, 400);
+      }
+
+      // Cleanup: Remove the temporary ZIP file
+      await fs.rm(tempZipDir, { recursive: true, force: true });
+      console.log("Temporary ZIP file cleaned up after JSProgram execution.");
+    }
+
+    // Proceed to fetch the package content from S3
+    const finalS3Key = `packages/${metadata.packagename}/v${metadata.packageversion}/package.zip`;
+    const finalS3Params = {
+      Bucket: bucketName!,
+      Key: finalS3Key,
     };
 
-    // Fetch the package content from S3
-    console.log("Fetching package content from S3 with key:", s3Key);
-    const s3Object = await s3.getObject(s3Params).promise();
-    const content = s3Object.Body ? s3Object.Body.toString("base64") : null;
+    console.log("Fetching package content from S3 with key:", finalS3Key);
+    const finalS3Object = await s3.getObject(finalS3Params).promise();
+    const finalContent = finalS3Object.Body ? finalS3Object.Body.toString("base64") : null;
 
-    if (!content) {
-      console.error(
-        "Failed to retrieve package content from S3 for key:",
-        s3Key
-      );
+    if (!finalContent) {
+      console.error("Failed to retrieve package content from S3 for key:", finalS3Key);
       throw new CustomError("Package content not found in S3.", 404);
     }
 
-    // Prepare response in the desired format
-    const response: any = {
+    // Prepare the response in the desired format
+    const response: Package = {
       metadata: {
         Name: metadata.packagename,
         Version: metadata.packageversion,
         ID: metadata.packageid,
       },
       data: {
-        Content: content, // Base64 encoded zip content
-        JSProgram: metadata.packagejs !== undefined ? metadata.packagejs : null, // Set to null if undefined
+        Content: finalContent, // Base64 encoded zip content
+        JSProgram: metadata.packagejs ? metadata.packagejs : null, // Set to null if undefined
+        debloat: metadata.content_type, // Assuming 'content_type' indicates debloat status
+        URL: metadata.packageurl ? metadata.packageurl : null,
       },
     };
 
-    // Include 'URL' in response if it was provided
-    if (metadata.packageurl) {
-      response.data.URL = metadata.packageurl;
-    }
-
     // Insert into history table
-    console.log("Inserting into package history table");
+    console.log("Inserting into package history table: DOWNLOAD action");
     await packageQueries.insertIntoPackageHistory(id, user, "DOWNLOAD");
 
     console.log("Returning package data:", JSON.stringify(response, null, 2));
