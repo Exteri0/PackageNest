@@ -1326,8 +1326,11 @@ export async function packageUpdate(
       JSProgram,
       URL
     );
-    console.log("Inserting into history table")
+    console.log("Inserting into history table");
     await packageQueries.insertIntoPackageHistory(existingPackage.ID, user, "UPDATE");
+
+    console.log("Inserting new package into history table");
+    await packageQueries.insertIntoPackageHistory(updatedPackageId, user, "CREATE");
 
     // Insert metrics if available
     if (metrics) {

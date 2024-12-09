@@ -45,12 +45,12 @@ export function calculateNetScore(
   return {
     NetScore:
       licenseScore * (
-      0.3 * rampUpScore +
+      0.2 * rampUpScore +
       0.2 * correctnessScore +
-      0.2 * responsiveMaintainerScore +
-      0.1 * goodPinningPracticeScore +
+      0.25 * responsiveMaintainerScore +
+      0.05 * goodPinningPracticeScore +
       0.1 * pullRequestScore +
-      0.1 * busFactorScore
+      0.2 * busFactorScore
       )
   };
 }
