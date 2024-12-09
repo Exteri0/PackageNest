@@ -156,7 +156,7 @@ CREATE TABLE package_dependencies (
 CREATE INDEX idx_packages_name ON packages(name);
 CREATE INDEX idx_packages_package_id ON packages(package_id);
 CREATE INDEX idx_package_history_package_id ON package_history(package_id);
-CREATE INDEX idx_package_history_user_id ON package_history(user_id);
+CREATE INDEX idx_package_history_user_name ON package_history(user_name);
 CREATE INDEX idx_package_metadata_package_id ON package_metadata(package_id);
 CREATE INDEX idx_package_data_package_id ON package_data(package_id);
 CREATE INDEX idx_package_ratings_package_id ON package_ratings(package_id);
