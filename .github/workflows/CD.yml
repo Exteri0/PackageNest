@@ -3,7 +3,7 @@ name: Deploy to EC2
 on:
   push:
     branches:
-      - main # Adjust to your deployment branch
+      - main # Adjust to your desired branch
 
 jobs:
   deploy:
@@ -27,7 +27,14 @@ jobs:
       - name: Build the project
         run: npm run build
 
-      # Step 4: Transfer files to EC2
+      # Step 4: Configure SSH and known_hosts
+      - name: Add host to known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H 3.12.111.89 >> ~/.ssh/known_hosts
+          cat ~/.ssh/known_hosts
+
+      # Step 5: Transfer files to EC2
       - name: Transfer files to EC2
         env:
           PRIVATE_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
@@ -45,7 +52,7 @@ jobs:
           
           rm private_key.pem # Remove private key after use
 
-      # Step 5: Restart the app on EC2 (optional, if applicable)
+      # Step 6: Restart the app on EC2 (optional)
       - name: Restart application on EC2
         env:
           PRIVATE_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
