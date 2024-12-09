@@ -441,11 +441,13 @@ export async function packageByRegExGet(
  * @throws CustomError if any step fails.
  */
 export async function packageCreate(
+  User: string, 
   Content?: string,
   URL?: string,
   debloat?: boolean,
   JSProgram?: string,
-  customName?: string // Added customName parameter
+  customName?: string,
+  // Added customName parameter
 ) {
   // Initialize variables to hold package information
   let packageName: string | undefined = undefined;
@@ -780,6 +782,10 @@ export async function packageCreate(
       );
       console.log("Package data inserted into the 'package_data' table.");
 
+      //Insert into history table
+      console.log("Inserting package history into the 'package_history' table.");
+      await packageQueries.insertIntoPackageHistory(packageId, User, "CREATE");
+
       // Insert metrics into the 'package_ratings' table if metrics are available
       if (metrics) {
         console.log("Inserting metrics into the 'package_ratings' table.");
@@ -973,7 +979,8 @@ export async function packageRate(
  */
 export async function packageRetrieve(
   xAuthorization: AuthenticationToken,
-  id: string
+  id: string,
+  user: string
 ) {
   console.log("Entered packageRetrieve function with ID:", id);
   console.log(
@@ -1065,6 +1072,10 @@ export async function packageRetrieve(
       response.data.URL = metadata.packageurl;
     }
 
+    // Insert into history table
+    console.log("Inserting into package history table");
+    await packageQueries.insertIntoPackageHistory(id, user, "DOWNLOAD");
+
     console.log("Returning package data:", JSON.stringify(response, null, 2));
     return response;
   } catch (error: any) {
@@ -1077,6 +1088,7 @@ export async function packageRetrieve(
 }
 
 export async function packageUpdate(
+  user: string,
   idParam: string,
   metadataName?: string,
   Version?: string,
@@ -1314,6 +1326,8 @@ export async function packageUpdate(
       JSProgram,
       URL
     );
+    console.log("Inserting into history table")
+    await packageQueries.insertIntoPackageHistory(existingPackage.ID, user, "UPDATE");
 
     // Insert metrics if available
     if (metrics) {
@@ -1644,6 +1658,7 @@ export async function populatePackages(
       try {
         // Call packageCreate with undefined for Content and pass URL as the second parameter
         const result = await packageCreate(
+          "1",
           undefined,
           url,
           false,
@@ -1666,5 +1681,21 @@ export async function populatePackages(
   } catch (error: any) {
     console.error("Error in populatePackages service function:", error);
     throw error; // Re-throw the error to be handled by the controller
+  }
+}
+
+export async function getHistory(
+  id: string
+): Promise <{user_name: string, action: string, timestamp: string}[]> {
+  try {
+    const history = await packageQueries.getPackageHistory(id);
+    return history;
+  } catch (error: any) {
+    if (error instanceof CustomError) {
+      throw error;
+    }
+    else{
+      throw new CustomError("Failed to retrieve package history.", 500);
+    }
   }
 }

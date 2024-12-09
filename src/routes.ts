@@ -238,6 +238,25 @@ export default (app: Express) => {
     }
   );
 
+  //GET /history/:id
+  app.get(
+    "/package/history/:id",
+    (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+      verifyJWT(req, res, next, false, false);
+    },
+    async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+      console.log("Received GET /history request");
+      console.log("ID is:", req.params.id);
+      try {
+        await DefaultController.GetHistory(req, res, next);
+        console.log("History response sent successfully");
+      } catch (error) {
+        console.error("Error in /history route handler:", error);
+        next(error);
+      }
+    }
+  );
+
   // POST /populate
   app.post(
     "/populate",
@@ -255,6 +274,7 @@ export default (app: Express) => {
       }
     }
   );
+
   app.delete(
     "/deleteSelf",
     (req: AuthenticatedRequest, res: Response, next: NextFunction) => {

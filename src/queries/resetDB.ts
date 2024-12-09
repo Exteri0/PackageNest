@@ -131,10 +131,10 @@ CREATE TABLE package_ratings (
 -- Package history table
 CREATE TABLE package_history (
     package_id VARCHAR(255),
-    user_id INTEGER,
+    user_name VARCHAR(255) NOT NULL,
     action VARCHAR(10) NOT NULL CHECK (action IN ('CREATE', 'UPDATE', 'DOWNLOAD', 'RATE')),
     action_date TIMESTAMP NOT NULL DEFAULT NOW(),
-    PRIMARY KEY (package_id, user_id, action, action_date)
+    PRIMARY KEY (package_id, user_name, action, action_date)
 );
 
 -- Package costs table
