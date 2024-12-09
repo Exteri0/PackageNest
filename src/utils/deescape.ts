@@ -1,3 +1,9 @@
+/**
+ * 
+ * @param input - The string to deescape.
+ * @returns 
+ */
+
 export default function deescapeString(input: string): string {
   let result = "";
   for (let i = 0; i < input.length; i++) {

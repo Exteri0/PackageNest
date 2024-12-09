@@ -1,30 +1,56 @@
-// busFactor.ts
+/**
+ * Bus Factor Metric Calculation Module
+ * 
+ * This file provides functionality to calculate the Bus Factor metric for a 
+ * given GitHub repository. The Bus Factor is a measure of risk associated with 
+ * knowledge concentration in a small number of contributors to a codebase.
+ * 
+ * The calculation involves fetching contributors' commit data using the GitHub 
+ * GraphQL API, determining the proportion of contributions made by key contributors, 
+ * and computing a metric score based on their relative contribution.
+ */
 
 import { graphql, GraphqlResponseError } from '@octokit/graphql';
 import { performance } from 'perf_hooks';
 import 'dotenv/config';
 
+// Load the GitHub token from environment variables
 const githubToken = process.env.MY_TOKEN || '';
 if (!githubToken) {
   console.error('MY_TOKEN is not defined');
   process.exit(1);
 }
 
+// Configure GraphQL client with authentication
 const graphqlWithAuth = graphql.defaults({
   headers: {
     authorization: `token ${githubToken}`,
   },
 });
 
+// Interface to store the Bus Factor result and latency information
 interface BusFactorResult {
   BusFactor: number;
-  BusFactorLatency: number; // in seconds
+  BusFactorLatency: number; // Latency in seconds
 }
 
+/**
+ * Calculates the latency for an operation.
+ * @param startTime - The start time of the operation in milliseconds.
+ * @returns The latency in seconds, rounded to three decimal places.
+ */
 function getLatency(startTime: number): number {
   return Number(((performance.now() - startTime) / 1000).toFixed(3));
 }
 
+/**
+ * Calculates the Bus Factor metric for a GitHub repository.
+ * 
+ * @param owner - The owner of the GitHub repository.
+ * @param repo - The name of the GitHub repository.
+ * @returns A promise that resolves to a BusFactorResult object containing 
+ * the Bus Factor score and the latency of the calculation.
+ */
 export async function calculateBusFactorMetric(
   owner: string,
   repo: string
@@ -76,10 +102,12 @@ export async function calculateBusFactorMetric(
 }
 
 /**
- * Fetches the list of contributors from the GitHub GraphQL API.
- * @param owner - Repository owner.
- * @param repo - Repository name.
- * @returns An array of contributors with their contribution counts.
+ * Fetches the list of contributors for a GitHub repository using the GitHub GraphQL API.
+ * 
+ * @param owner - The owner of the GitHub repository.
+ * @param repo - The name of the GitHub repository.
+ * @returns A promise that resolves to an array of contributors, each with their 
+ * username and contribution count.
  */
 async function fetchContributors(
   owner: string,
@@ -88,7 +116,7 @@ async function fetchContributors(
   const contributorsMap: { [login: string]: number } = {};
   let hasNextPage = true;
   let cursor: string | null = null;
-  const maxIterations = 10; // To prevent excessive API calls
+  const maxIterations = 10; // To limit excessive API calls
 
   console.log('Fetching contributors from GitHub GraphQL API...');
 
@@ -120,11 +148,7 @@ async function fetchContributors(
       }
     `;
 
-    const variables = {
-      owner,
-      repo,
-      cursor,
-    };
+    const variables = { owner, repo, cursor };
 
     try {
       const response: any = await graphqlWithAuth(query, variables);
@@ -140,11 +164,7 @@ async function fetchContributors(
           login = node.author.name;
         }
 
-        if (contributorsMap[login]) {
-          contributorsMap[login] += 1;
-        } else {
-          contributorsMap[login] = 1;
-        }
+        contributorsMap[login] = (contributorsMap[login] || 0) + 1;
       }
 
       hasNextPage = history.pageInfo.hasNextPage;

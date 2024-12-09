@@ -1,4 +1,12 @@
-// metricExports.ts
+/**
+ * Metric Exports Module
+ * 
+ * This file combines various metric calculation functions to provide a 
+ * comprehensive evaluation of a package's quality. It calculates metrics 
+ * such as Correctness, Ramp-Up, License compatibility, Responsiveness, 
+ * Good Pinning Practice, Bus Factor, and Pull Request activity. The metrics 
+ * are then used to compute a NetScore that aggregates these values.
+ */
 
 import { fetchRepoInfo } from "./infoRepo.js";
 import { calculateRampUpMetric } from "./rampUP.js";
@@ -29,10 +37,28 @@ export interface PackageRating {
   BusFactor: number;
 }
 
+/**
+ * Calculates the latency for an operation.
+ * 
+ * @param startTime - The start time of the operation in milliseconds.
+ * @returns The latency in seconds, rounded to three decimal places.
+ */
 function getLatency(startTime: number): number {
   return Number(((performance.now() - startTime) / 1000).toFixed(3));
 }
 
+/**
+ * Computes the NetScore based on individual metrics.
+ * 
+ * @param licenseScore - The License compatibility score.
+ * @param rampUpScore - The Ramp-Up time score.
+ * @param correctnessScore - The Correctness score.
+ * @param responsiveMaintainerScore - The Responsiveness score.
+ * @param goodPinningPracticeScore - The Good Pinning Practice score (default: 0).
+ * @param busFactorScore - The Bus Factor score (default: 0).
+ * @param pullRequestScore - The Pull Request activity score (default: 0).
+ * @returns An object containing the NetScore.
+ */
 export function calculateNetScore(
   licenseScore: number,
   rampUpScore: number,
@@ -55,6 +81,13 @@ export function calculateNetScore(
   };
 }
 
+/**
+ * Calculates all metrics for a given package input.
+ * 
+ * @param input - The input string representing the package, either a URL or file path.
+ * @returns A promise resolving to a `PackageRating` object containing all metrics and their latencies.
+ * @throws A CustomError if metric calculation fails.
+ */
 export async function calculateMetrics(input: string): Promise<PackageRating> {
   try {
     console.log("Starting metric calculation");

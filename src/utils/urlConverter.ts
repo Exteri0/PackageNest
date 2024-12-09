@@ -1,8 +1,22 @@
-// utils/urlConverter.ts
+/**
+ * URL Converter Utility
+ * 
+ * This module provides functionality to convert an npm package URL to the corresponding 
+ * GitHub repository URL. It extracts the package name from the npm URL, fetches metadata 
+ * from the npm registry, and parses the repository URL. The utility ensures that the 
+ * extracted URL is a valid GitHub repository URL.
+ */
 
 import axios from 'axios';
 import { CustomError } from '../utils/types.js';
 
+/**
+ * Converts an npm package URL to a GitHub repository URL.
+ * 
+ * @param npmUrl - The npm package URL to be converted.
+ * @returns A promise resolving to the corresponding GitHub repository URL.
+ * @throws A CustomError if the conversion fails or the npm URL is invalid.
+ */
 export async function convertNpmUrlToGitHubUrl(npmUrl: string): Promise<string> {
   console.info('Starting conversion of npm URL to GitHub URL.', { npmUrl });
 

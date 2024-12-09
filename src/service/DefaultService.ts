@@ -1,3 +1,8 @@
+/*
+THIS IS SERVICE FOR THE CONTROLLER FILE. IT CONTAINS THE FUNCTIONS THAT WILL BE CALLED BY THE CONTROLLER FILE.
+
+*/
+
 "use strict";
 
 import { Request, Response, NextFunction, response } from "express";

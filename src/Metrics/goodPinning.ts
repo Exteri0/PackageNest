@@ -1,3 +1,13 @@
+/**
+ * Good Pinning Practice Metric Calculation Module
+ * 
+ * This file provides functionality to calculate the "Good Pinning Practice" metric 
+ * for a given GitHub repository. This metric evaluates the extent to which the 
+ * dependencies in a `package.json` file are pinned to specific major and minor versions.
+ * Proper pinning of dependencies helps ensure stability and reduces the risk of 
+ * unexpected behavior caused by unbounded version updates.
+ */
+
 import * as fs from 'fs';
 import * as semver from 'semver';
 import { performance } from 'perf_hooks';
@@ -7,20 +17,31 @@ import { getPackageJson } from '../utils/retrievePackageJson.js';
  * Interface for the pinning score result.
  */
 interface PinningResult {
-  GoodPinningPractice: number;
-  GoodPinningPracticeLatency: number; // in seconds
+  GoodPinningPractice: number; // Metric score between 0 and 1
+  GoodPinningPracticeLatency: number; // Calculation latency in seconds
+}
+
+/**
+ * Calculates the latency for an operation.
+ * 
+ * @param startTime - The start time of the operation in milliseconds.
+ * @returns The latency in seconds, rounded to three decimal places.
+ */
+function getLatency(startTime: number): number {
+  return Number(((performance.now() - startTime) / 1000).toFixed(3));
 }
 
 /**
  * Calculates the "Good Pinning Practice" score for a given GitHub repository.
- * @param owner - The GitHub repository owner.
- * @param name - The GitHub repository name.
- * @returns A Promise that resolves to an object containing the pinning score and latency.
+ * 
+ * The metric evaluates the ratio of dependencies in `package.json` that are 
+ * properly pinned to specific major and minor versions.
+ * 
+ * @param owner - The owner of the GitHub repository.
+ * @param name - The name of the GitHub repository.
+ * @returns A promise that resolves to an object containing the pinning score 
+ * and the latency of the calculation in seconds.
  */
-function getLatency(startTime: number): number {
-  return Number(((performance.now() - startTime) / 1000).toFixed(3)); // Latency in seconds
-}
-
 export async function calculatePinningMetric(
   owner: string,
   name: string
@@ -29,7 +50,6 @@ export async function calculatePinningMetric(
   const startTime = performance.now();
 
   try {
-    // Fetch package.json using the existing function
     console.log(`Fetching package.json for ${owner}/${name}...`);
     const packageInfo = await getPackageJson(owner, name);
 
@@ -45,7 +65,7 @@ export async function calculatePinningMetric(
 
     console.log(`Total dependencies found: ${totalDependencies}`);
 
-    let score = 1.0; // Default score if no dependencies
+    let score = 1.0; // Default score for repositories with no dependencies
 
     if (totalDependencies > 0) {
       let pinnedCount = 0;
@@ -81,9 +101,11 @@ export async function calculatePinningMetric(
 
 /**
  * Determines if a version specifier is pinned to at least a specific major and minor version.
- * Handles exact versions, tilde (~), caret (^), and pre-release versions.
- * @param versionSpec - The version specifier string from package.json.
- * @returns True if pinned to major.minor, false otherwise.
+ * 
+ * This function handles exact versions, tilde (`~`), caret (`^`), and pre-release versions.
+ * 
+ * @param versionSpec - The version specifier string from the `package.json` file.
+ * @returns True if the version is pinned to a specific major and minor version, false otherwise.
  */
 function isPinnedToMajorMinor(versionSpec: string): boolean {
   const trimmed = versionSpec.trim();

@@ -1,3 +1,7 @@
+//THIS IS THE CONTROLLER FILE
+//IT CALLS THE FUNCTIONS OF THE DEFAULT SERVICE
+//
+
 "use strict";
 
 import { Request, Response, NextFunction } from "express";
@@ -12,6 +16,14 @@ import {
 import jwt from "jsonwebtoken";
 import { stringify } from "querystring";
 import * as packageQueries from "../queries/packageQueries.js";
+
+/**
+ * 
+ * @param req Authenticated request including the header x-authorization
+ * @param res Express response object
+ * @param next 
+ * @param body Body of the request to be used in default service
+ */
 
 export const CreateAuthToken = async (
   req: AuthenticatedRequest,
@@ -45,6 +57,15 @@ export const CreateAuthToken = async (
   }
 };
 
+
+/**
+ * 
+ * @param req Authenticated request including the header x-authorization
+ * @param res Express response object
+ * @param next 
+ * @param body Body of the request to be used in default service
+ */
+
 export const PackageByNameGet = (
   req: AuthenticatedRequest,
   res: Response,
@@ -69,6 +90,13 @@ export const PackageByNameGet = (
     });
 };
 
+/**
+ * 
+ * @param req 
+ * @param res 
+ * @param next 
+ * @param body 
+ */
 export const PackageByRegExGet = async (
   req: AuthenticatedRequest,
   res: Response,

@@ -1,3 +1,13 @@
+/**
+ * JWT Verification Middleware
+ * 
+ * This file contains a middleware function for verifying JSON Web Tokens (JWTs) 
+ * in an Express application. It validates the token, checks user permissions 
+ * (admin and backend roles), and ensures the token has not expired or exceeded 
+ * interaction limits. The middleware attaches user information to the request 
+ * object if the token is valid.
+ */
+
 import jwt from "jsonwebtoken";
 import { Request, Response, NextFunction } from "express";
 import { JwtPayload } from "jsonwebtoken";
@@ -10,6 +20,16 @@ import {
 
 const JWT_SECRET = process.env.JWT_SECRET ?? "defaultSecret";
 
+/**
+ * Middleware to verify JSON Web Tokens (JWTs).
+ * 
+ * @param req - The Express request object with user information attached.
+ * @param res - The Express response object.
+ * @param next - The next middleware or route handler.
+ * @param isAdmin - Flag to require admin privileges.
+ * @param isBackend - Flag to require backend privileges.
+ * @param mode - Determines whether to update the token interaction count (default: 1).
+ */
 export const verifyJWT = async (
   req: OpenApiRequest,
   res: Response,

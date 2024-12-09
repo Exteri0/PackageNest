@@ -1,23 +1,52 @@
+/**
+ * Pull Request Metric Calculation Module
+ * 
+ * This file calculates the Pull Request metric for a given GitHub repository. 
+ * The metric evaluates the proportion of code additions in merged pull requests 
+ * that have been reviewed. It uses the GitHub GraphQL API to fetch data on 
+ * merged pull requests and their associated reviews.
+ */
+
 import { graphql, GraphqlResponseError } from '@octokit/graphql';
 import { performance } from 'perf_hooks';
 import 'dotenv/config';
 
+// Load the GitHub token from environment variables
 const githubToken = process.env.MY_TOKEN || "";
 if (!githubToken) {
   console.error("MY_TOKEN is not defined");
   process.exit(1);
 }
 
+// Configure GraphQL client with authentication
 const graphqlWithAuth = graphql.defaults({
   headers: {
     authorization: `token ${githubToken}`,
   },
 });
 
+/**
+ * Calculates the latency for an operation.
+ * 
+ * @param startTime - The start time of the operation in milliseconds.
+ * @returns The latency in seconds, rounded to three decimal places.
+ */
 function getLatency(startTime: number): number {
   return Number(((performance.now() - startTime) / 1000).toFixed(3));
 }
 
+/**
+ * Calculates the Pull Request metric for a given GitHub repository.
+ * 
+ * The metric represents the proportion of code additions in merged pull 
+ * requests that have been reviewed. It processes up to the most recent 
+ * 1000 pull requests (5 pages of 100 pull requests each).
+ * 
+ * @param owner - The owner of the GitHub repository.
+ * @param name - The name of the GitHub repository.
+ * @returns A promise that resolves to an object containing the Pull Request 
+ * score and the latency of the calculation in seconds.
+ */
 export async function calculatePullRequestMetric(
   owner: string,
   name: string

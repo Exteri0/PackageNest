@@ -1,25 +1,51 @@
-// responsiveness_metric.ts
+/**
+ * Responsiveness Metric Calculation Module
+ * 
+ * This file calculates the Responsiveness metric for a given GitHub repository.
+ * The metric evaluates the maintainers' responsiveness based on the average 
+ * response time for pull requests and issues. It uses the GitHub GraphQL API 
+ * to fetch relevant data.
+ */
 
 import { graphql, GraphqlResponseError } from "@octokit/graphql";
 import "dotenv/config";
 
-
+// Load the GitHub token from environment variables
 const githubToken = process.env.MY_TOKEN || "";
 if (!githubToken) {
   console.error("MY_TOKEN is not defined");
   process.exit(1);
 }
 
+// Configure GraphQL client with authentication
 const graphqlWithAuth = graphql.defaults({
   headers: {
     authorization: `token ${githubToken}`,
   },
 });
 
+/**
+ * Calculates the latency for an operation.
+ * 
+ * @param startTime - The start time of the operation in milliseconds.
+ * @returns The latency in seconds, rounded to three decimal places.
+ */
 function getLatency(startTime: number): number {
   return Number(((performance.now() - startTime) / 1000).toFixed(3));
 }
 
+/**
+ * Calculates the Responsiveness metric for a given GitHub repository.
+ * 
+ * The metric considers the average response time for both pull requests 
+ * and issues to determine the maintainers' responsiveness. A responsiveness 
+ * score is calculated based on predefined thresholds for acceptable response times.
+ * 
+ * @param owner - The owner of the GitHub repository.
+ * @param name - The name of the GitHub repository.
+ * @returns A promise that resolves to an object containing the Responsiveness score 
+ * and the latency of the calculation in seconds.
+ */
 export async function calculateResponsivenessMetric(
   owner: string,
   name: string

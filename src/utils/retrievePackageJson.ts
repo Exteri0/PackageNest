@@ -1,4 +1,10 @@
-// retrievePackageJson.ts
+/**
+ * Package JSON Retrieval Module
+ * 
+ * This module provides functionality to retrieve and parse `package.json` files 
+ * from various sources, including GitHub repositories, ZIP files, and URLs. 
+ * It also includes utility functions for downloading files and converting tarballs to ZIPs.
+ */
 
 import * as zlib from "zlib";
 import * as unzipper from "unzipper";
@@ -11,7 +17,11 @@ import axios from "axios";
 import { CustomError } from "./types.js"; // Ensure you have this custom error class
 
 /**
- * Helper function to parse package.json content
+ * Helper function to parse package.json content.
+ * 
+ * @param content - The content of the `package.json` file as a string.
+ * @returns A promise resolving to the parsed `PackageJsonResult` object.
+ * @throws An error if the content cannot be parsed.
  */
 async function parsePackageJsonContent(
   content: string
@@ -45,7 +55,12 @@ async function parsePackageJsonContent(
 }
 
 /**
- * Function to retrieve the full package.json from a GitHub repository
+ * Retrieves the full `package.json` from a GitHub repository.
+ * 
+ * @param owner - The owner of the GitHub repository.
+ * @param repo - The name of the GitHub repository.
+ * @returns A promise resolving to the `PackageJsonResult` object.
+ * @throws An error if the `package.json` cannot be retrieved.
  */
 export async function getPackageJson(
   owner: string,
@@ -90,7 +105,12 @@ export async function getPackageJson(
 }
 
 /**
- * Function to retrieve package info (name and version) from a GitHub repository
+ * Retrieves package information (name and version) from a GitHub repository.
+ * 
+ * @param owner - The owner of the GitHub repository.
+ * @param repo - The name of the GitHub repository.
+ * @returns A promise resolving to an object containing the package name and version.
+ * @throws An error if the package information cannot be retrieved.
  */
 export async function getPackageInfoRepo(
   owner: string,
@@ -100,7 +120,6 @@ export async function getPackageInfoRepo(
     const packageJson = await getPackageJson(owner, repo);
     return { name: packageJson.name, version: packageJson.version };
   } catch (error: any) {
-    // Re-throw the error to be handled by the high-level function
     throw new Error(
       `Failed to retrieve package info from repository: ${error.message}`
     );
@@ -108,7 +127,11 @@ export async function getPackageInfoRepo(
 }
 
 /**
- * Function to retrieve package info (name and version) from a ZIP file
+ * Retrieves package information (name and version) from a ZIP file.
+ * 
+ * @param base64String - The ZIP file encoded as a base64 string.
+ * @returns A promise resolving to an object containing the package name and version.
+ * @throws An error if the `package.json` cannot be found or read in the ZIP file.
  */
 export async function getPackageInfoZipFile(
   base64String: string
@@ -141,7 +164,6 @@ export async function getPackageInfoZipFile(
 
     return { name, version };
   } catch (error: any) {
-    // Re-throw the error to be handled by the high-level function
     throw new Error(
       `Failed to retrieve package info from ZIP file: ${error.message}`
     );
@@ -149,7 +171,11 @@ export async function getPackageInfoZipFile(
 }
 
 /**
- * Function to download a file from a given URL and return its content as a Buffer
+ * Downloads a file from a given URL and returns its content as a Buffer.
+ * 
+ * @param url - The URL to download the file from.
+ * @returns A promise resolving to the file content as a Buffer.
+ * @throws A CustomError if the file cannot be downloaded.
  */
 export async function downloadFile(url: string): Promise<Buffer> {
   try {
@@ -167,8 +193,9 @@ export async function downloadFile(url: string): Promise<Buffer> {
 
 /**
  * Converts a tarball buffer (.tgz) to a zip buffer.
- * @param {Buffer} tarballBuffer - The tarball buffer.
- * @returns {Promise<Buffer>} - The zip buffer.
+ * 
+ * @param tarballBuffer - The tarball buffer.
+ * @returns A promise resolving to the zip buffer.
  */
 export async function convertTarballToZipBuffer(
   tarballBuffer: Buffer
